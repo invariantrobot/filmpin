@@ -30,7 +30,7 @@ mapRouter.get("/getTitleByGenre", (req, res) => {
 });
 
 mapRouter.get("/getGenres", (req, res) => {
-  const genres = db.prepare('SELECT DINSTINCT genre FROM movies').all()
+  const genres = db.prepare('SELECT DISTINCT genre FROM movies').all()
   return res.json({ success: true, genres });
 });
 
