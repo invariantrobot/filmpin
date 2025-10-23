@@ -73,6 +73,10 @@ function makeRouter({ model }: ReactRootProps) {
           path: 'film',
           element: <Film model={model} />,
         },
+        {
+          path: 'film/:filmId',
+          element: <Film model={model} />,
+        },
       ],
     },
   ]);

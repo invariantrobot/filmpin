@@ -1,12 +1,19 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { FilmLocation } from '../views/mapView';
+import type { Location } from '../services/api';
+
+// Global state to persist locations across component unmounts
+let globalLocations: FilmLocation[] = [];
 
 /**
  * Hook for managing film location map state
  * Use this in your presenters for centralized map logic
  */
 export function useFilmMap() {
-  const [locations, setLocations] = useState<FilmLocation[]>([]);
+  const navigate = useNavigate();
+  const [locations, setLocationsState] =
+    useState<FilmLocation[]>(globalLocations);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<FilmLocation | null>(
     null
@@ -16,6 +23,12 @@ export function useFilmMap() {
     year?: number;
     director?: string;
   }>({});
+
+  // Wrapper to update both local state and global state
+  const setLocations = useCallback((newLocations: FilmLocation[]) => {
+    globalLocations = newLocations;
+    setLocationsState(newLocations);
+  }, []);
 
   // Load map center from localStorage or use default
   const getInitialMapCenter = () => {
@@ -30,6 +43,7 @@ export function useFilmMap() {
     return {
       latitude: 59.3293, // Default to Stockholm
       longitude: 18.0686,
+      zoom: 14, // Default zoom level
     };
   };
 
@@ -37,16 +51,21 @@ export function useFilmMap() {
 
   // Wrapper to save to localStorage when map center changes
   const setMapCenter = useCallback(
-    (center: { latitude: number; longitude: number }) => {
+    (center: { latitude: number; longitude: number; zoom?: number }) => {
       console.log('useFilmMap: Setting map center to:', center);
-      setMapCenterState(center);
+      const newCenter = {
+        latitude: center.latitude,
+        longitude: center.longitude,
+        zoom: center.zoom ?? mapCenter.zoom ?? 14, // Keep existing zoom if not provided
+      };
+      setMapCenterState(newCenter);
       try {
-        localStorage.setItem('filmpin_mapCenter', JSON.stringify(center));
+        localStorage.setItem('filmpin_mapCenter', JSON.stringify(newCenter));
       } catch (e) {
         console.error('Failed to save map center to localStorage:', e);
       }
     },
-    []
+    [mapCenter.zoom]
   );
 
   const [radiusKm, setRadiusKm] = useState(10);
@@ -128,11 +147,33 @@ export function useFilmMap() {
     }
   }, [searchQuery, locations]);
 
-  // Handle location click
-  const handleLocationClick = useCallback((location: FilmLocation) => {
-    setSelectedLocation(location);
-    console.log('Selected location:', location);
-  }, []);
+  // Handle location click - navigate to film location page
+  const handleLocationClick = useCallback(
+    (location: FilmLocation) => {
+      console.log(
+        'Location clicked, navigating to film location page:',
+        location
+      );
+
+      // Convert FilmLocation to Location format for the film location view
+      const locationData: Location = {
+        id: parseInt(location.id.replace('loc-', '')),
+        movie_id: location.movieId,
+        lat: location.latitude,
+        lon: location.longitude,
+        place: location.title,
+        info: location.info,
+      };
+
+      navigate('/location', {
+        state: {
+          location: locationData,
+          movieTitle: location.movieTitle,
+        },
+      });
+    },
+    [navigate]
+  );
 
   // Handle bounds change (for loading more data)
   const handleBoundsChange = useCallback(
@@ -158,12 +199,16 @@ export function useFilmMap() {
 
   // Add a new location (for testing or manual entry)
   const addLocation = useCallback((location: FilmLocation) => {
-    setLocations((prev) => [...prev, location]);
+    const newLocations = [...globalLocations, location];
+    globalLocations = newLocations;
+    setLocationsState(newLocations);
   }, []);
 
   // Remove a location
   const removeLocation = useCallback((id: string) => {
-    setLocations((prev) => prev.filter((loc) => loc.id !== id));
+    const newLocations = globalLocations.filter((loc) => loc.id !== id);
+    globalLocations = newLocations;
+    setLocationsState(newLocations);
   }, []);
 
   return {

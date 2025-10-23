@@ -12,24 +12,62 @@ import {
 import { MapView } from './mapView';
 import type { FilmLocation } from './mapView';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { Location } from '../services/api';
 
 interface FilmLocationViewProps {
   model: unknown;
+  location?: Location;
+  movieTitle?: string;
 }
 
-export function FilmLocationView(_props: FilmLocationViewProps) {
+export function FilmLocationView({
+  location,
+  movieTitle,
+}: FilmLocationViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
-  // Sample location from mapExample.tsx - Stockholm City Hall
-  const location: FilmLocation = {
-    id: 'loc-1',
-    movieId: 'movie-1',
-    latitude: 59.3293,
-    longitude: 18.0686,
-    title: 'Stockholm City Hall',
-    movieTitle: 'The Girl with the Dragon Tattoo',
-    imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
+  console.log('FilmLocationView: Received location:', location);
+  console.log('FilmLocationView: Received movieTitle:', movieTitle);
+
+  // Handler to navigate to dashboard map centered on this location
+  const handlePinClick = (loc: FilmLocation) => {
+    console.log('Pin clicked, navigating to dashboard with location:', loc);
+    navigate('/', {
+      state: {
+        mapCenter: {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        },
+        selectedLocationName: loc.title,
+        timestamp: Date.now(), // Force state update
+      },
+    });
   };
+
+  // Use provided location or fallback to sample location
+  const filmLocation: FilmLocation = location
+    ? {
+        id: `loc-${location.id}`,
+        movieId: location.movie_id,
+        latitude: location.lat,
+        longitude: location.lon,
+        title: location.place,
+        movieTitle: movieTitle || 'Unknown Movie',
+        imageUrl: 'https://placehold.co/300x300/e63946/white?text=LOC',
+      }
+    : {
+        id: 'loc-1',
+        movieId: 'movie-1',
+        latitude: 59.3293,
+        longitude: 18.0686,
+        title: 'Stockholm City Hall',
+        movieTitle: 'The Girl with the Dragon Tattoo',
+        imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
+      };
+
+  console.log('FilmLocationView: Using filmLocation:', filmLocation);
 
   return (
     <div className="MyFilmLocation">
@@ -59,12 +97,11 @@ export function FilmLocationView(_props: FilmLocationViewProps) {
       </div>
       <div className="">
         <h2 className="text-3xl font-bold text-black text-left pt-8 pb-2 ml-4">
-          Film Location Name Here
+          {filmLocation.title}
         </h2>
         <p className="px-4 py-2 text-gray-700 text-left">
-          While desperately trying to find ways to get her ADHD medication,
-          18-year-old Joanna is trying to figure out her newfound feelings
-          towards her classmate Audrey, but also towards herself.
+          {location?.info ||
+            'No additional information available for this location.'}
         </p>
       </div>
       <div>
@@ -77,16 +114,16 @@ export function FilmLocationView(_props: FilmLocationViewProps) {
         </div>
         <div className="px-0 py-0 mx-4 rounded mt-6 h-60 overflow-hidden">
           <MapView
-            locations={[location]}
+            locations={[filmLocation]}
             initialCenter={{
-              latitude: location.latitude,
-              longitude: location.longitude,
+              latitude: filmLocation.latitude,
+              longitude: filmLocation.longitude,
             }}
             radiusKm={1}
             searchQuery={searchQuery}
             onSearchTextChange={setSearchQuery}
             onSearchButtonClick={() => console.log('Search clicked')}
-            onLocationClick={(loc) => console.log('Location clicked:', loc)}
+            onLocationClick={handlePinClick}
             showSearch={false}
             showRecenterButton={false}
             showInfoPanel={false}

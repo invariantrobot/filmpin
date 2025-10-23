@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SearchView } from './views/searchView';
 import type { SearchTab } from './views/searchView';
+import { getByTitle, type Movie } from './services/api';
 
 // Type for geocoding results from Nominatim API
 export interface GeocodedLocation {
@@ -25,6 +26,7 @@ export function SearchPresenter() {
   console.log('SearchPresenter: Component rendering');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<SearchTab>('films');
+  const [filmResults, setFilmResults] = useState<Movie[]>([]);
   const [locationResults, setLocationResults] = useState<GeocodedLocation[]>(
     []
   );
@@ -37,6 +39,20 @@ export function SearchPresenter() {
     return () => {
       console.log('SearchPresenter: Component unmounting');
     };
+  }, []);
+
+  // Search films from backend API
+  const searchFilms = useCallback(async (query: string) => {
+    setIsSearching(true);
+    try {
+      const films = await getByTitle(query);
+      setFilmResults(films);
+    } catch (error) {
+      console.error('Error searching films:', error);
+      setFilmResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   }, []);
 
   // Search locations using Nominatim API (OpenStreetMap)
@@ -73,6 +89,20 @@ export function SearchPresenter() {
     }
   }, []);
 
+  // Debounced search for films tab
+  useEffect(() => {
+    if (activeTab !== 'films' || !searchQuery.trim()) {
+      setFilmResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      searchFilms(searchQuery);
+    }, 500); // Debounce for 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, activeTab, searchFilms]);
+
   // Debounced geocoding search for locations tab
   useEffect(() => {
     if (activeTab !== 'locations' || !searchQuery.trim()) {
@@ -94,9 +124,12 @@ export function SearchPresenter() {
   function handleTabChange(tab: SearchTab) {
     setActiveTab(tab);
     // Search query persists across tabs
-    // Just clear location results when switching away from locations
+    // Clear results when switching tabs
     if (tab !== 'locations') {
       setLocationResults([]);
+    }
+    if (tab !== 'films') {
+      setFilmResults([]);
     }
   }
 
@@ -121,6 +154,12 @@ export function SearchPresenter() {
     });
   }
 
+  function handleFilmClick(film: Movie) {
+    console.log('SearchPresenter: Film clicked:', film);
+    // Navigate to film detail page (you can adjust the route as needed)
+    navigate(`/film/${film.id}`);
+  }
+
   return (
     <SearchView
       searchQuery={searchQuery}
@@ -128,8 +167,10 @@ export function SearchPresenter() {
       activeTab={activeTab}
       onTabChange={handleTabChange}
       onBackClick={handleBackClick}
+      filmResults={filmResults}
       locationResults={locationResults}
       onLocationClick={handleLocationClick}
+      onFilmClick={handleFilmClick}
       isSearching={isSearching}
     />
   );

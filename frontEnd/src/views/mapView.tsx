@@ -1,8 +1,15 @@
-import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import React, {
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import MapGL, { Marker } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
-import { Search, MapPin } from 'lucide-react';
+import { Search, LocateFixed } from 'lucide-react';
+import Supercluster from 'supercluster';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Types for film location data
@@ -14,6 +21,7 @@ export interface FilmLocation {
   title: string; // Location name (e.g., "Stockholm City Hall")
   movieTitle?: string; // Title of the movie for display
   imageUrl?: string; // Movie poster or location image
+  info?: string; // Additional info about the location
 }
 
 interface MapViewProps {
@@ -22,7 +30,7 @@ interface MapViewProps {
   // Filter function to filter locations
   filterFn?: (location: FilmLocation) => boolean;
   // Starting location (default is Stockholm, Sweden)
-  initialCenter?: { latitude: number; longitude: number };
+  initialCenter?: { latitude: number; longitude: number; zoom?: number };
   // Flag to indicate if we should animate to initialCenter (e.g., from search navigation)
   shouldNavigateToCenter?: boolean;
   // Radius in kilometers for loading pins
@@ -39,7 +47,11 @@ interface MapViewProps {
     east: number;
     west: number;
   }) => void;
-  onMapMove?: (center: { latitude: number; longitude: number }) => void;
+  onMapMove?: (center: {
+    latitude: number;
+    longitude: number;
+    zoom: number;
+  }) => void;
   // UI control options
   showSearch?: boolean;
   showRecenterButton?: boolean;
@@ -49,7 +61,7 @@ interface MapViewProps {
 export function MapView({
   locations = [],
   filterFn,
-  initialCenter = { latitude: 59.3293, longitude: 18.0686 }, // Stockholm
+  initialCenter = { latitude: 59.3292999245142, longitude: 18.068600160651158 }, // Stockholm
   shouldNavigateToCenter = false,
   radiusKm = 10,
   searchQuery,
@@ -66,16 +78,29 @@ export function MapView({
   const navigate = useNavigate();
   // Store the default Stockholm center so reset button always goes back to Stockholm
   const originalInitialCenter = useRef({
-    longitude: 18.0686, // Stockholm
-    latitude: 59.3293,
+    longitude: 18.068600160651158, // Stockholm
+    latitude: 59.3292999245142,
   });
   const [viewState, setViewState] = useState({
     longitude: initialCenter.longitude,
     latitude: initialCenter.latitude,
-    zoom: 12,
+    zoom: initialCenter.zoom ?? 14,
   });
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [expandedClusterId, setExpandedClusterId] = useState<string | null>(
+    null
+  );
+
+  // Create Supercluster instance
+  const superclusterRef = useRef<Supercluster>(
+    new Supercluster({
+      radius: 75, // Cluster radius in pixels
+      maxZoom: 20, // Max zoom to cluster points on
+      minZoom: 0,
+      minPoints: 2, // Minimum points to form a cluster
+    })
+  );
 
   // Track the last initialCenter we flew to
   const lastInitialCenter = useRef({
@@ -247,43 +272,70 @@ export function MapView({
   // Filter locations based on filter function
   const filteredLocations = filterFn ? locations.filter(filterFn) : locations;
 
-  // Group locations that are very close together for clustering
-  const groupedLocations = useCallback(() => {
-    const groups = new globalThis.Map<string, FilmLocation[]>();
-    const threshold = 0.001; // ~100m threshold for grouping
+  console.log('MapView: Received locations:', locations.length);
+  console.log('MapView: Filtered locations:', filteredLocations.length);
 
-    filteredLocations.forEach((location) => {
-      const key = `${Math.round(location.latitude / threshold) * threshold},${Math.round(location.longitude / threshold) * threshold}`;
-      const existing = groups.get(key) || [];
-      groups.set(key, [...existing, location]);
-    });
-
-    return Array.from(groups.values());
+  // Convert locations to GeoJSON format for Supercluster
+  const points = useMemo(() => {
+    console.log(
+      'MapView: Converting locations to points:',
+      filteredLocations.length
+    );
+    return filteredLocations.map((location) => ({
+      type: 'Feature' as const,
+      properties: {
+        cluster: false,
+        locationId: location.id,
+        location: location,
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [location.longitude, location.latitude],
+      },
+    }));
   }, [filteredLocations]);
 
-  // Geocode search query and fly to location
-  async function searchLocationACB() {
-    if (!searchQuery || !mapRef.current) return;
+  // Load points into Supercluster
+  useEffect(() => {
+    console.log('MapView: Loading points into Supercluster:', points.length);
+    superclusterRef.current.load(points);
+  }, [points]);
 
-    try {
-      // Using Nominatim for geocoding (free, open source)
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
+  // Get clusters for current viewport
+  const clusters = useMemo(() => {
+    if (!mapRef.current || !mapLoaded) {
+      console.log(
+        'MapView: Map not ready, using all points as individual markers'
       );
-      const data = await response.json();
-
-      if (data && data.length > 0) {
-        const { lat, lon } = data[0];
-        mapRef.current.flyTo({
-          center: [parseFloat(lon), parseFloat(lat)],
-          zoom: 14,
-          duration: 2000,
-        });
-      }
-    } catch (error) {
-      console.error('Geocoding error:', error);
+      // Return all points as individual markers when map isn't ready
+      return points.map((point) => ({
+        ...point,
+        id: point.properties.locationId,
+      }));
     }
-  }
+
+    const bounds = mapRef.current.getBounds();
+    if (!bounds) {
+      console.log('MapView: No bounds, using all points as individual markers');
+      return points.map((point) => ({
+        ...point,
+        id: point.properties.locationId,
+      }));
+    }
+
+    const bbox: [number, number, number, number] = [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth(),
+    ];
+
+    const zoom = Math.floor(viewState.zoom);
+
+    const result = superclusterRef.current.getClusters(bbox, zoom);
+    console.log('MapView: Got clusters:', result.length, 'at zoom:', zoom);
+    return result;
+  }, [viewState, mapLoaded, points]);
 
   // Update bounds when map moves
   const handleMoveEnd = useCallback(() => {
@@ -305,78 +357,196 @@ export function MapView({
         console.log(
           'MapView: Notifying parent of map move to:',
           center.lat,
-          center.lng
+          center.lng,
+          'zoom:',
+          viewState.zoom
         );
         onMapMove({
           latitude: center.lat,
           longitude: center.lng,
+          zoom: viewState.zoom,
         });
       }
     }
-  }, [onBoundsChange, onMapMove]);
+  }, [onBoundsChange, onMapMove, viewState.zoom]);
 
-  // Check if location is within visible map bounds
-  const isWithinBounds = useCallback((location: FilmLocation) => {
-    if (!mapRef.current) return true;
-    const bounds = mapRef.current.getBounds();
-    if (!bounds) return true;
-
-    return (
-      location.latitude >= bounds.getSouth() &&
-      location.latitude <= bounds.getNorth() &&
-      location.longitude >= bounds.getWest() &&
-      location.longitude <= bounds.getEast()
-    );
-  }, []);
-
-  // Calculate if location is within radius from center
-  const isWithinRadius = useCallback(
-    (location: FilmLocation) => {
-      const R = 6371; // Earth radius in km
-      const dLat = ((location.latitude - viewState.latitude) * Math.PI) / 180;
-      const dLon = ((location.longitude - viewState.longitude) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((viewState.latitude * Math.PI) / 180) *
-          Math.cos((location.latitude * Math.PI) / 180) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-      return distance <= dynamicRadius;
-    },
-    [viewState.latitude, viewState.longitude, dynamicRadius]
-  );
-
-  // Calculate visible locations count (uses map bounds instead of radius)
+  // Calculate visible locations count (count actual locations, not clusters)
   const visibleLocationsCount = useMemo(() => {
-    return filteredLocations.filter(isWithinBounds).length;
-  }, [filteredLocations, isWithinBounds]);
+    return clusters.reduce((count, cluster) => {
+      if ('cluster' in cluster.properties && cluster.properties.cluster) {
+        return (
+          count +
+          ('point_count' in cluster.properties
+            ? (cluster.properties.point_count as number)
+            : 0)
+        );
+      }
+      return count + 1;
+    }, 0);
+  }, [clusters]);
 
-  // Render custom pin marker
-  const renderMarker = (group: FilmLocation[]) => {
-    const isCluster = group.length > 1;
-    const primaryLocation = group[0];
+  // Calculate spread positions for expanded cluster
+  const getSpreadPositions = (
+    centerLat: number,
+    centerLng: number,
+    count: number
+  ): Array<{ lat: number; lng: number }> => {
+    const positions: Array<{ lat: number; lng: number }> = [];
 
-    return (
-      <Marker
-        key={primaryLocation.id}
-        longitude={primaryLocation.longitude}
-        latitude={primaryLocation.latitude}
-        anchor="bottom"
-        onClick={(e) => {
-          e.originalEvent.stopPropagation();
-          if (onLocationClick) {
-            onLocationClick(primaryLocation);
-          }
-        }}
-      >
-        <div
-          className="cursor-pointer transition-transform hover:scale-110"
-          style={{ position: 'relative' }}
+    // Much larger base radius for visibility
+    // Spread should be visually significant at all zoom levels
+    const baseRadius = 0.01; // ~1km at zoom 12
+    const zoomFactor = Math.pow(2, 12 - viewState.zoom);
+    const radius = baseRadius * zoomFactor;
+
+    const angleStep = (2 * Math.PI) / count;
+
+    for (let i = 0; i < count; i++) {
+      const angle = i * angleStep;
+      positions.push({
+        lat: centerLat + radius * Math.cos(angle),
+        lng: centerLng + radius * Math.sin(angle),
+      });
+    }
+
+    return positions;
+  };
+
+  // Render custom pin marker for clusters and individual points
+  const renderClusterMarker = (
+    cluster: ReturnType<Supercluster['getClusters']>[0]
+  ) => {
+    const [longitude, latitude] = cluster.geometry.coordinates;
+    const isCluster =
+      'cluster' in cluster.properties && cluster.properties.cluster === true;
+    const pointCount =
+      isCluster && 'point_count' in cluster.properties
+        ? cluster.properties.point_count
+        : 0;
+    const MAX_SPREADABLE_CLUSTER_SIZE = 8;
+
+    // Handle cluster
+    if (isCluster && cluster.id !== undefined) {
+      const clusterId = `cluster-${cluster.id}`;
+      const isExpanded = expandedClusterId === clusterId;
+      const canSpread = pointCount <= MAX_SPREADABLE_CLUSTER_SIZE;
+
+      // If cluster is expanded, get the leaves (individual points in the cluster)
+      if (isExpanded && canSpread) {
+        const leaves = superclusterRef.current.getLeaves(
+          cluster.id as number,
+          Infinity
+        );
+
+        const spreadPositions = getSpreadPositions(
+          latitude,
+          longitude,
+          leaves.length
+        );
+
+        return (
+          <React.Fragment key={clusterId}>
+            {/* Render center cluster marker (can be clicked to collapse) */}
+            <Marker
+              longitude={longitude}
+              latitude={latitude}
+              anchor="bottom"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setExpandedClusterId(null); // Collapse
+              }}
+            >
+              <div className="cursor-pointer transition-transform hover:scale-110">
+                <div className="relative opacity-50">
+                  <img
+                    src="/filmpin-logo-sm.png"
+                    alt="FilmPin"
+                    className="w-16 h-16 drop-shadow-lg"
+                  />
+                  <div
+                    className="absolute -top-1 -right-1 bg-gray-600 text-white font-bold text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md border-2 border-white"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    ✕
+                  </div>
+                </div>
+              </div>
+            </Marker>
+
+            {/* Render spread individual pins */}
+            {leaves.map((leaf, idx) => {
+              const location = leaf.properties.location;
+              return (
+                <Marker
+                  key={location.id}
+                  longitude={spreadPositions[idx].lng}
+                  latitude={spreadPositions[idx].lat}
+                  anchor="bottom"
+                  onClick={(e) => {
+                    e.originalEvent.stopPropagation();
+                    console.log(
+                      'MapView: Spread marker clicked, location:',
+                      location
+                    );
+                    if (onLocationClick) {
+                      onLocationClick(location);
+                    }
+                  }}
+                >
+                  <div className="cursor-pointer transition-all hover:scale-110 animate-in zoom-in duration-300">
+                    <div className="relative">
+                      {location.imageUrl ? (
+                        <div className="w-14 h-14 border-4 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
+                          <img
+                            src={location.imageUrl}
+                            alt={location.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 border-4 border-white shadow-lg bg-blue-500 flex items-center justify-center text-xl rounded-lg">
+                          🎬
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Marker>
+              );
+            })}
+          </React.Fragment>
+        );
+      }
+
+      // Collapsed cluster marker
+      return (
+        <Marker
+          key={clusterId}
+          longitude={longitude}
+          latitude={latitude}
+          anchor="bottom"
+          onClick={(e) => {
+            e.originalEvent.stopPropagation();
+
+            // If cluster has more than 8 locations, zoom in instead of spreading
+            if (!canSpread && mapRef.current) {
+              const expansionZoom = Math.min(
+                superclusterRef.current.getClusterExpansionZoom(
+                  cluster.id as number
+                ),
+                20
+              );
+              mapRef.current.flyTo({
+                center: [longitude, latitude],
+                zoom: expansionZoom,
+                duration: 500,
+              });
+            } else {
+              // Spread the cluster (8 or fewer items)
+              setExpandedClusterId(clusterId);
+            }
+          }}
         >
-          {isCluster ? (
-            // Cluster with FilmPin logo and count badge
+          <div className="cursor-pointer transition-transform hover:scale-110">
             <div className="relative">
               <img
                 src="/filmpin-logo-sm.png"
@@ -384,30 +554,52 @@ export function MapView({
                 className="w-16 h-16 drop-shadow-lg"
               />
               <div
-                className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md border-2 border-white"
+                className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs w-6 h-6 flex items-center justify-center rounded-full shadow-md border-2 border-white"
                 style={{ pointerEvents: 'none' }}
               >
-                {group.length}
+                {pointCount}
               </div>
             </div>
-          ) : (
-            // Single location with image and white border
-            <div className="relative">
-              {primaryLocation.imageUrl ? (
-                <div className="w-16 h-16 border-5 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
-                  <img
-                    src={primaryLocation.imageUrl}
-                    alt={primaryLocation.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-16 h-16 border-5 border-white shadow-lg bg-blue-500 flex items-center justify-center text-2xl rounded-lg">
-                  🎬
-                </div>
-              )}
-            </div>
-          )}
+          </div>
+        </Marker>
+      );
+    }
+
+    // Individual location marker
+    const location = cluster.properties.location;
+    return (
+      <Marker
+        key={location.id}
+        longitude={longitude}
+        latitude={latitude}
+        anchor="bottom"
+        onClick={(e) => {
+          e.originalEvent.stopPropagation();
+          console.log(
+            'MapView: Individual marker clicked, location:',
+            location
+          );
+          if (onLocationClick) {
+            onLocationClick(location);
+          }
+        }}
+      >
+        <div className="cursor-pointer transition-transform hover:scale-110">
+          <div className="relative">
+            {location.imageUrl ? (
+              <div className="w-16 h-16 border-5 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
+                <img
+                  src={location.imageUrl}
+                  alt={location.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-16 h-16 border-5 border-white shadow-lg bg-blue-500 flex items-center justify-center text-2xl rounded-lg">
+                🎬
+              </div>
+            )}
+          </div>
         </div>
       </Marker>
     );
@@ -501,10 +693,8 @@ export function MapView({
         </Source>
         */}
 
-          {/* Render location markers */}
-          {groupedLocations()
-            .filter((group) => isWithinRadius(group[0]))
-            .map((group) => renderMarker(group))}
+          {/* Render location markers using Supercluster */}
+          {clusters.map((cluster) => renderClusterMarker(cluster))}
         </MapGL>
       </div>
 
@@ -524,7 +714,7 @@ export function MapView({
           className="absolute bottom-4 right-4 bg-white hover:bg-gray-50 rounded-full shadow-lg p-4 z-10 transition-all hover:shadow-xl active:scale-95 pointer-events-auto"
           title="Reset map to initial view"
         >
-          <MapPin className="w-6 h-6 text-gray-600" />
+          <LocateFixed className="w-6 h-6 text-gray-600" />
         </button>
       )}
     </div>

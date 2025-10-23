@@ -1,4 +1,5 @@
-import { Search, X, MapPin, Loader2 } from 'lucide-react';
+import { Search, X, MapPin, Loader2, Film } from 'lucide-react';
+import type { Movie } from '../services/api';
 
 export type SearchTab = 'films' | 'locations';
 
@@ -26,10 +27,10 @@ interface SearchViewProps {
   activeTab: SearchTab;
   onTabChange: (tab: SearchTab) => void;
   onBackClick: () => void;
-  // Results will be added later
-  filmResults?: unknown[];
+  filmResults?: Movie[];
   locationResults?: GeocodedLocation[];
   onLocationClick?: (location: GeocodedLocation) => void;
+  onFilmClick?: (film: Movie) => void;
   isSearching?: boolean;
 }
 
@@ -39,8 +40,10 @@ export function SearchView({
   activeTab,
   onTabChange,
   onBackClick,
+  filmResults = [],
   locationResults = [],
   onLocationClick,
+  onFilmClick,
   isSearching = false,
 }: SearchViewProps) {
   // Handle search text change
@@ -62,6 +65,15 @@ export function SearchView({
     };
   }
 
+  // Handle film click
+  function handleFilmClickACB(film: Movie) {
+    return () => {
+      if (onFilmClick) {
+        onFilmClick(film);
+      }
+    };
+  }
+
   // Format address from geocoded location
   function formatAddress(location: GeocodedLocation): string {
     const addr = location.address;
@@ -75,6 +87,14 @@ export function SearchView({
     ].filter(Boolean);
 
     return parts.length > 0 ? parts.join(', ') : location.display_name;
+  }
+
+  // Generate placeholder poster URL
+  function getPlaceholderPoster(title: string): string {
+    const colors = ['457b9d', 'e63946', '2a9d8f', 'f4a261', '8338ec', 'fb5607'];
+    const colorIndex = title.length % colors.length;
+    const initials = title.substring(0, 3).toUpperCase();
+    return `https://placehold.co/300x450/${colors[colorIndex]}/white?text=${encodeURIComponent(initials)}`;
   }
 
   return (
@@ -137,12 +157,69 @@ export function SearchView({
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto p-4">
           {activeTab === 'films' ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">
-                {searchQuery
-                  ? 'No films found. Start typing to search...'
-                  : 'Search for films by title'}
-              </p>
+            <div>
+              {!searchQuery ? (
+                <div className="text-center py-12">
+                  <Film className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">Search for films by title</p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Try searching for your favorite movie
+                  </p>
+                </div>
+              ) : isSearching ? (
+                <div className="text-center py-12">
+                  <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-3 animate-spin" />
+                  <p className="text-gray-500">Searching films...</p>
+                </div>
+              ) : filmResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <Film className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    No films found for "{searchQuery}"
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Try a different search term
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {filmResults.map((film) => (
+                    <button
+                      key={film.id}
+                      onClick={handleFilmClickACB(film)}
+                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden text-left border border-gray-200 hover:border-blue-400 flex flex-col"
+                    >
+                      <div className="aspect-[2/3] bg-gray-100 relative overflow-hidden flex-shrink-0">
+                        <img
+                          src={
+                            film.posterUrl || getPlaceholderPoster(film.title)
+                          }
+                          alt={film.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = getPlaceholderPoster(film.title);
+                          }}
+                        />
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col">
+                        <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-1 min-h-[2.5rem]">
+                          {film.title}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs text-gray-600 mt-auto">
+                          {film.year && <span>{film.year}</span>}
+                          {film.genre && (
+                            <>
+                              {film.year && <span>•</span>}
+                              <span className="line-clamp-1">{film.genre}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div>

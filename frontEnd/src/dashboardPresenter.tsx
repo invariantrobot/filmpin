@@ -1,58 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapView } from './views/mapView';
 import { useFilmMap } from './hooks/useFilmMap';
-import type { FilmLocation } from './views/mapView';
-
-// Sample film locations data - each location is tied to one movie
-const sampleLocations: FilmLocation[] = [
-  {
-    id: 'loc-1',
-    movieId: 'movie-1',
-    latitude: 59.3293,
-    longitude: 18.0686,
-    title: 'Stockholm City Hall',
-    movieTitle: 'The Girl with the Dragon Tattoo',
-    imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
-  },
-  {
-    id: 'loc-2',
-    movieId: 'movie-2',
-    latitude: 59.3251,
-    longitude: 18.0711,
-    title: 'Gamla Stan',
-    movieTitle: 'Mission Impossible',
-    imageUrl: 'https://placehold.co/300x300/457b9d/white?text=MI',
-  },
-  {
-    id: 'loc-3',
-    movieId: 'movie-3',
-    latitude: 59.3252,
-    longitude: 18.0712,
-    title: 'Royal Palace',
-    movieTitle: 'The Crown',
-    imageUrl: 'https://placehold.co/300x300/1d3557/white?text=TC',
-  },
-  {
-    id: 'loc-4',
-    movieId: 'movie-1',
-    latitude: 59.3326,
-    longitude: 18.0649,
-    title: 'Sergels Torg',
-    movieTitle: 'The Girl with the Dragon Tattoo',
-    imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
-  },
-  {
-    id: 'loc-5',
-    movieId: 'movie-4',
-    latitude: 59.3321,
-    longitude: 18.0644,
-    title: 'Kulturhuset',
-    movieTitle: 'Let the Right One In',
-    imageUrl: 'https://placehold.co/300x300/a8dadc/333?text=LTR',
-  },
-];
+import { getAllLocations, getAllTitles } from './services/api';
+import { transformLocationsWithMovies } from './utils/locationTransform';
 
 /**
  * Dashboard Presenter Component
@@ -62,18 +14,19 @@ const Dashboard = observer(function DashboardRender() {
   const routerLocation = useLocation();
   const navigate = useNavigate();
   const [shouldNavigateToCenter, setShouldNavigateToCenter] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const hasLoadedData = useRef(false);
 
   const {
     locations,
     searchQuery,
-    selectedLocation,
     mapCenter,
     radiusKm,
     loading,
     error,
     setSearchQuery,
     setLocations,
-    setSelectedLocation,
     setMapCenter,
     filterFunction,
     handleSearch,
@@ -83,9 +36,44 @@ const Dashboard = observer(function DashboardRender() {
 
   console.log('Dashboard: Current mapCenter:', mapCenter);
 
-  // Initialize with sample data
+  // Fetch real data from the backend
   useEffect(() => {
-    setLocations(sampleLocations);
+    // Only fetch once, ever
+    if (hasLoadedData.current) {
+      console.log('Dashboard: Data already loaded, skipping fetch');
+      return;
+    }
+
+    async function fetchData() {
+      try {
+        setIsLoadingData(true);
+        setLoadError(null);
+
+        // Fetch both locations and movies in parallel
+        const [locations, movies] = await Promise.all([
+          getAllLocations(),
+          getAllTitles(),
+        ]);
+
+        // Transform the data to FilmLocation format
+        const filmLocations = transformLocationsWithMovies(locations, movies);
+
+        console.log(
+          `Loaded ${filmLocations.length} film locations from backend`
+        );
+        setLocations(filmLocations);
+        hasLoadedData.current = true;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to load data';
+        console.error('Error loading film locations:', err);
+        setLoadError(errorMessage);
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
+
+    fetchData();
   }, [setLocations]);
 
   // Handle navigation from search with location data
@@ -120,17 +108,20 @@ const Dashboard = observer(function DashboardRender() {
     }
   }, [routerLocation.state, setMapCenter, navigate]);
 
-  if (error) {
+  if (error || loadError) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <div className="text-red-600">Error loading map: {error}</div>
+        <div className="text-red-600">
+          Error loading map: {error || loadError}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-full h-full relative">
-      {loading && (
+      {/* Only show loading on initial load when we have no locations */}
+      {isLoadingData && locations.length === 0 && (
         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
           <div className="text-lg">Loading locations...</div>
         </div>
@@ -149,34 +140,6 @@ const Dashboard = observer(function DashboardRender() {
         onBoundsChange={handleBoundsChange}
         onMapMove={setMapCenter}
       />
-
-      {/* Optional: Show selected location details */}
-      {selectedLocation && (
-        <div className="absolute top-20 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-20 pointer-events-auto">
-          <button
-            onClick={() => setSelectedLocation(null)}
-            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-          <h3 className="font-bold text-lg mb-2">{selectedLocation.title}</h3>
-          {selectedLocation.imageUrl && (
-            <img
-              src={selectedLocation.imageUrl}
-              alt={selectedLocation.title}
-              className="w-full h-48 object-cover rounded mb-2"
-            />
-          )}
-          {selectedLocation.movieTitle && (
-            <div>
-              <p className="font-semibold text-sm mb-1">Movie:</p>
-              <p className="text-sm text-gray-600">
-                {selectedLocation.movieTitle}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 });

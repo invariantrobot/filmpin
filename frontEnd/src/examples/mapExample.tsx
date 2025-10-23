@@ -1,59 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapView } from '../views/mapView';
 import type { FilmLocation } from '../views/mapView';
-
-// Sample film locations data - each location is tied to one movie
-const sampleLocations: FilmLocation[] = [
-  {
-    id: 'loc-1',
-    movieId: 'movie-1',
-    latitude: 59.3293,
-    longitude: 18.0686,
-    title: 'Stockholm City Hall',
-    movieTitle: 'The Girl with the Dragon Tattoo',
-    imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
-  },
-  {
-    id: 'loc-2',
-    movieId: 'movie-2',
-    latitude: 59.3251,
-    longitude: 18.0711,
-    title: 'Gamla Stan',
-    movieTitle: 'Mission Impossible',
-    imageUrl: 'https://placehold.co/300x300/457b9d/white?text=MI',
-  },
-  {
-    id: 'loc-3',
-    movieId: 'movie-3',
-    latitude: 59.3252,
-    longitude: 18.0712,
-    title: 'Royal Palace',
-    movieTitle: 'The Crown',
-    imageUrl: 'https://placehold.co/300x300/1d3557/white?text=TC',
-  },
-  {
-    id: 'loc-4',
-    movieId: 'movie-1',
-    latitude: 59.3326,
-    longitude: 18.0649,
-    title: 'Sergels Torg',
-    movieTitle: 'The Girl with the Dragon Tattoo',
-    imageUrl: 'https://placehold.co/300x300/e63946/white?text=TGW',
-  },
-  {
-    id: 'loc-5',
-    movieId: 'movie-4',
-    latitude: 59.3321,
-    longitude: 18.0644,
-    title: 'Kulturhuset',
-    movieTitle: 'Let the Right One In',
-    imageUrl: 'https://placehold.co/300x300/a8dadc/333?text=LTR',
-  },
-];
+import { getAllLocations, getAllTitles } from '../services/api';
+import { transformLocationsWithMovies } from '../utils/locationTransform';
 
 export function MapExample() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [locations] = useState<FilmLocation[]>(sampleLocations);
+  const [locations, setLocations] = useState<FilmLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real data from the backend
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch both locations and movies in parallel
+        const [locationsData, moviesData] = await Promise.all([
+          getAllLocations(),
+          getAllTitles(),
+        ]);
+
+        // Transform the data to FilmLocation format
+        const filmLocations = transformLocationsWithMovies(
+          locationsData,
+          moviesData
+        );
+
+        console.log(
+          `Loaded ${filmLocations.length} film locations from backend`
+        );
+        setLocations(filmLocations);
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to load data';
+        console.error('Error loading film locations:', err);
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   // Handle location click - will be used for navigation later
   const handleLocationClick = (location: FilmLocation) => {
@@ -72,10 +63,23 @@ export function MapExample() {
     // You can fetch new locations from backend based on these bounds
   };
 
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-red-600">Error loading locations: {error}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full">
       {/* Map - full screen */}
       <div className="w-full h-full relative">
+        {loading && (
+          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+            <div className="text-lg">Loading locations...</div>
+          </div>
+        )}
         <MapView
           locations={locations}
           initialCenter={{ latitude: 59.3293, longitude: 18.0686 }}
