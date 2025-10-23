@@ -7,9 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Files
 node_modules
 dist
 dist-ssr
+database.db
+db.sqlite
+title.basics.tsv
+locationDataset.pk
 *.local
 
 # Editor directories and files
@@ -22,3 +27,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Directories
+node_modules/
+data/
+
+
+
