@@ -97,7 +97,12 @@ export function MapView({
     if (!mapRef.current) return;
 
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
+      // Default location if geolocation not supported
+      mapRef.current.flyTo({
+        center: [18.071811849474248, 59.34694977877377],
+        zoom: 14,
+        duration: 1500,
+      });
       return;
     }
 
@@ -121,7 +126,7 @@ export function MapView({
           setIsGeolocating(false);
         },
         (error) => {
-          console.error('Geolocation error:', error, 'Code:', error.code);
+          console.log('Geolocation error:', error, 'Code:', error.code);
 
           // If high accuracy failed and this was the first attempt, try without high accuracy
           if (enableHighAccuracy && error.code === 2) {
@@ -130,30 +135,21 @@ export function MapView({
             return;
           }
 
-          let errorMessage = 'Unable to get your location. ';
-
-          switch (error.code) {
-            case 1: // PERMISSION_DENIED
-              errorMessage +=
-                'Location permission was denied. Please check your browser settings.';
-              break;
-            case 2: // POSITION_UNAVAILABLE
-              errorMessage +=
-                'Your location is unavailable. This may happen if you are using a VPN or your device cannot determine its location.';
-              break;
-            case 3: // TIMEOUT
-              errorMessage += 'Location request timed out. Please try again.';
-              break;
-            default:
-              errorMessage += 'An unknown error occurred.';
+          // Default to specified location instead of showing error
+          console.log('Defaulting to fallback location');
+          if (mapRef.current) {
+            mapRef.current.flyTo({
+              center: [18.071811849474248, 59.34694977877377],
+              zoom: 14,
+              duration: 1500,
+            });
           }
 
-          alert(errorMessage);
           setIsGeolocating(false);
         },
         {
           enableHighAccuracy,
-          timeout: 15000,
+          timeout: enableHighAccuracy ? 3000 : 5000, // Shorter timeouts for faster fallback
           maximumAge: 300000, // Accept cached position up to 5 minutes old
         }
       );
