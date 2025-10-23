@@ -10,7 +10,9 @@ import { ReactRoot } from './ReactRoot.tsx';
 // Extend Window interface for global properties
 declare global {
   interface Window {
-    React: unknown;
+    React: {
+      createElement: typeof createElement;
+    };
     myModel: unknown;
   }
 }

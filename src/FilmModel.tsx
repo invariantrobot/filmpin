@@ -1,5 +1,5 @@
 import { makeAutoObservable } from 'mobx';
-import { resolvePromise } from './resolvePromise.js';
+// import { resolvePromise } from './resolvePromise.js';
 
 interface Film {
   id: string;

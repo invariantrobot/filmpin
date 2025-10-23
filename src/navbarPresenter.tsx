@@ -1,11 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { NavbarView } from './views/navbarView.tsx';
 
-interface NavbarProps {
-  model: unknown;
-}
-
-const Navbar = observer(function NavbarRender(_props: NavbarProps) {
+const Navbar = observer(function NavbarRender() {
   return (
     <div>
       <NavbarView />

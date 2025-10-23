@@ -1,7 +1,8 @@
-import { Navbar } from './navbarPresenter.tsx';
 import { Dashboard } from './dashboardPresenter.tsx';
-// import { Profile } from './profilePresenter.js';
-// import { Film } from "./filmPresenter.jsx";
+import { Profile } from './profilePresenter.tsx';
+import { Plan } from './planPresenter.tsx';
+import { SearchPresenter } from './searchPresenter.tsx';
+import { LayoutView } from './views/layoutView.tsx';
 
 import { observer } from 'mobx-react-lite';
 
@@ -33,7 +34,6 @@ const ReactRoot = observer(function ReactRoot({ model }: ReactRootProps) {
   // Main app mobile div container
   return (
     <div className="border-2 border-black rounded-lg h-screen max-w-lg mx-auto shadow-2xl bg-white">
-      <Navbar model={model} />
       <RouterProvider router={makeRouter({ model })} />
     </div>
   );
@@ -45,11 +45,25 @@ function makeRouter({ model }: ReactRootProps) {
   return createHashRouter([
     {
       path: '/',
-      element: <Dashboard model={model} />,
+      element: <LayoutView />,
+      children: [
+        {
+          index: true,
+          element: <Dashboard model={model} />,
+        },
+        {
+          path: 'search',
+          element: <SearchPresenter />,
+        },
+        {
+          path: 'plan',
+          element: <Plan model={model} />,
+        },
+        {
+          path: 'profile',
+          element: <Profile model={model} />,
+        },
+      ],
     },
-    /*{
-      path: '/profile',
-      element: <Profile model={model} />,
-    },*/
   ]);
 }
