@@ -23,6 +23,8 @@ interface MapViewProps {
   filterFn?: (location: FilmLocation) => boolean;
   // Starting location (default is Stockholm, Sweden)
   initialCenter?: { latitude: number; longitude: number };
+  // Flag to indicate if we should animate to initialCenter (e.g., from search navigation)
+  shouldNavigateToCenter?: boolean;
   // Radius in kilometers for loading pins
   radiusKm?: number;
   // Search functionality
@@ -37,21 +39,36 @@ interface MapViewProps {
     east: number;
     west: number;
   }) => void;
+  onMapMove?: (center: { latitude: number; longitude: number }) => void;
+  // UI control options
+  showSearch?: boolean;
+  showRecenterButton?: boolean;
+  showInfoPanel?: boolean;
 }
 
 export function MapView({
   locations = [],
   filterFn,
   initialCenter = { latitude: 59.3293, longitude: 18.0686 }, // Stockholm
+  shouldNavigateToCenter = false,
   radiusKm = 10,
   searchQuery,
   onSearchTextChange,
   onSearchButtonClick,
   onLocationClick,
   onBoundsChange,
+  onMapMove,
+  showSearch = true,
+  showRecenterButton = true,
+  showInfoPanel = true,
 }: MapViewProps) {
   const mapRef = useRef<MapRef>(null);
   const navigate = useNavigate();
+  // Store the default Stockholm center so reset button always goes back to Stockholm
+  const originalInitialCenter = useRef({
+    longitude: 18.0686, // Stockholm
+    latitude: 59.3293,
+  });
   const [viewState, setViewState] = useState({
     longitude: initialCenter.longitude,
     latitude: initialCenter.latitude,
@@ -60,11 +77,52 @@ export function MapView({
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
 
+  // Track the last initialCenter we flew to
+  const lastInitialCenter = useRef({
+    longitude: initialCenter.longitude,
+    latitude: initialCenter.latitude,
+  });
+
   // Update map center when initialCenter prop changes (e.g., from search navigation)
   useEffect(() => {
     console.log('MapView: initialCenter changed:', initialCenter);
+    console.log(
+      'MapView: shouldNavigateToCenter prop:',
+      shouldNavigateToCenter
+    );
     console.log('MapView: mapRef.current exists:', !!mapRef.current);
     console.log('MapView: mapLoaded:', mapLoaded);
+
+    // Only animate if explicitly requested (e.g., from search navigation)
+    if (!shouldNavigateToCenter) {
+      console.log(
+        'MapView: Navigation not requested, updating lastInitialCenter only'
+      );
+      lastInitialCenter.current = {
+        longitude: initialCenter.longitude,
+        latitude: initialCenter.latitude,
+      };
+      return;
+    }
+
+    // Check if initialCenter is actually different from the last one we flew to
+    // Use a larger threshold (0.01 degrees ≈ 1km) to avoid triggering on small map movements
+    const hasChanged =
+      Math.abs(lastInitialCenter.current.longitude - initialCenter.longitude) >
+        0.01 ||
+      Math.abs(lastInitialCenter.current.latitude - initialCenter.latitude) >
+        0.01;
+
+    if (!hasChanged) {
+      console.log('MapView: initialCenter unchanged, skipping animation');
+      return;
+    }
+
+    // Update the last center we flew to
+    lastInitialCenter.current = {
+      longitude: initialCenter.longitude,
+      latitude: initialCenter.latitude,
+    };
 
     // Update viewState to match the new center
     setViewState((prev) => ({
@@ -90,7 +148,12 @@ export function MapView({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [initialCenter.latitude, initialCenter.longitude, mapLoaded]);
+  }, [
+    initialCenter.latitude,
+    initialCenter.longitude,
+    mapLoaded,
+    shouldNavigateToCenter,
+  ]);
 
   // Recenter to user's current location
   function handleRecenterToCurrentLocation() {
@@ -159,6 +222,20 @@ export function MapView({
     tryGetLocation(true);
   }
 
+  // Recenter to initial location
+  function handleRecenterToInitialLocation() {
+    if (!mapRef.current) return;
+
+    mapRef.current.flyTo({
+      center: [
+        originalInitialCenter.current.longitude,
+        originalInitialCenter.current.latitude,
+      ],
+      zoom: 14,
+      duration: 1500,
+    });
+  }
+
   // Calculate dynamic radius based on zoom level
   // Higher zoom = closer view = smaller radius
   const dynamicRadius = useMemo(() => {
@@ -183,23 +260,6 @@ export function MapView({
 
     return Array.from(groups.values());
   }, [filteredLocations]);
-
-  // Handle search text change
-  function searchTextChangeACB(evt: React.ChangeEvent<HTMLInputElement>) {
-    onSearchTextChange(evt.target.value);
-  }
-
-  // Handle search button click
-  function searchButtonClickACB() {
-    onSearchButtonClick();
-  }
-
-  // Handle search on Enter key
-  function searchTriggerCheckACB(evt: React.KeyboardEvent<HTMLInputElement>) {
-    if (evt.key === 'Enter') {
-      onSearchButtonClick();
-    }
-  }
 
   // Geocode search query and fly to location
   async function searchLocationACB() {
@@ -227,9 +287,11 @@ export function MapView({
 
   // Update bounds when map moves
   const handleMoveEnd = useCallback(() => {
-    if (mapRef.current && onBoundsChange) {
+    if (mapRef.current) {
       const bounds = mapRef.current.getBounds();
-      if (bounds) {
+      const center = mapRef.current.getCenter();
+
+      if (bounds && onBoundsChange) {
         onBoundsChange({
           north: bounds.getNorth(),
           south: bounds.getSouth(),
@@ -237,8 +299,21 @@ export function MapView({
           west: bounds.getWest(),
         });
       }
+
+      // Notify parent of map center change
+      if (center && onMapMove) {
+        console.log(
+          'MapView: Notifying parent of map move to:',
+          center.lat,
+          center.lng
+        );
+        onMapMove({
+          latitude: center.lat,
+          longitude: center.lng,
+        });
+      }
     }
-  }, [onBoundsChange]);
+  }, [onBoundsChange, onMapMove]);
 
   // Check if location is within visible map bounds
   const isWithinBounds = useCallback((location: FilmLocation) => {
@@ -306,7 +381,7 @@ export function MapView({
               <img
                 src="/filmpin-logo-sm.png"
                 alt="FilmPin"
-                className="w-12 h-12 drop-shadow-lg"
+                className="w-16 h-16 drop-shadow-lg"
               />
               <div
                 className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md border-2 border-white"
@@ -319,7 +394,7 @@ export function MapView({
             // Single location with image and white border
             <div className="relative">
               {primaryLocation.imageUrl ? (
-                <div className="w-12 h-12 border-4 border-white shadow-lg overflow-hidden bg-gray-200">
+                <div className="w-16 h-16 border-5 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
                   <img
                     src={primaryLocation.imageUrl}
                     alt={primaryLocation.title}
@@ -327,7 +402,7 @@ export function MapView({
                   />
                 </div>
               ) : (
-                <div className="w-12 h-12 border-4 border-white shadow-lg bg-blue-500 flex items-center justify-center text-2xl">
+                <div className="w-16 h-16 border-5 border-white shadow-lg bg-blue-500 flex items-center justify-center text-2xl rounded-lg">
                   🎬
                 </div>
               )}
@@ -351,22 +426,24 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       {/* Search bar overlay */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 pointer-events-none">
-        <div
-          className="flex items-center bg-white rounded-4xl shadow-lg p-2 cursor-pointer pointer-events-auto hover:shadow-xl transition-shadow"
-          onClick={handleSearchBarClickACB}
-        >
-          <Search className="h-6 w-6 text-gray-400 ml-2" />
-          <input
-            type="text"
-            placeholder="Search for movies or locations"
-            value={searchQuery || ''}
-            className="flex-1 px-2 py-2 outline-none cursor-pointer"
-            readOnly
+      {showSearch && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 pointer-events-none">
+          <div
+            className="flex items-center bg-white rounded-4xl shadow-lg p-2 cursor-pointer pointer-events-auto hover:shadow-xl transition-shadow"
             onClick={handleSearchBarClickACB}
-          />
+          >
+            <Search className="h-6 w-6 text-gray-400 ml-2" />
+            <input
+              type="text"
+              placeholder="Search for movies or locations"
+              value={searchQuery || ''}
+              className="flex-1 px-2 py-2 outline-none cursor-pointer"
+              readOnly
+              onClick={handleSearchBarClickACB}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Map container - explicitly set lower z-index */}
       <div className="absolute inset-0 z-0">
@@ -432,25 +509,24 @@ export function MapView({
       </div>
 
       {/* Info panel */}
-      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 z-10 pointer-events-none">
-        <p className="text-sm text-gray-600">
-          Showing {visibleLocationsCount} locations within {dynamicRadius}km
-        </p>
-      </div>
+      {showInfoPanel && (
+        <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 z-10 pointer-events-none">
+          <p className="text-sm text-gray-600">
+            Showing {visibleLocationsCount} locations within {dynamicRadius}km
+          </p>
+        </div>
+      )}
 
       {/* Recenter button - bottom right */}
-      <button
-        onClick={handleRecenterToCurrentLocation}
-        disabled={isGeolocating}
-        className="absolute bottom-4 right-4 bg-white hover:bg-gray-50 disabled:bg-gray-100 rounded-full shadow-lg p-4 z-10 transition-all hover:shadow-xl active:scale-95 disabled:cursor-not-allowed pointer-events-auto"
-        title="Center map on my location"
-      >
-        {isGeolocating ? (
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <MapPin className="w-6 h-6 text-blue-600" />
-        )}
-      </button>
+      {showRecenterButton && (
+        <button
+          onClick={handleRecenterToInitialLocation}
+          className="absolute bottom-4 right-4 bg-white hover:bg-gray-50 rounded-full shadow-lg p-4 z-10 transition-all hover:shadow-xl active:scale-95 pointer-events-auto"
+          title="Reset map to initial view"
+        >
+          <MapPin className="w-6 h-6 text-gray-600" />
+        </button>
+      )}
     </div>
   );
 }

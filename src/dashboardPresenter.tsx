@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapView } from './views/mapView';
 import { useFilmMap } from './hooks/useFilmMap';
@@ -61,6 +61,8 @@ const sampleLocations: FilmLocation[] = [
 const Dashboard = observer(function DashboardRender() {
   const routerLocation = useLocation();
   const navigate = useNavigate();
+  const [shouldNavigateToCenter, setShouldNavigateToCenter] = useState(false);
+
   const {
     locations,
     searchQuery,
@@ -79,6 +81,8 @@ const Dashboard = observer(function DashboardRender() {
     handleBoundsChange,
   } = useFilmMap();
 
+  console.log('Dashboard: Current mapCenter:', mapCenter);
+
   // Initialize with sample data
   useEffect(() => {
     setLocations(sampleLocations);
@@ -89,8 +93,10 @@ const Dashboard = observer(function DashboardRender() {
     const state = routerLocation.state as {
       mapCenter?: { latitude: number; longitude: number };
       selectedLocationName?: string;
+      timestamp?: number;
     } | null;
 
+    // Only update mapCenter if we have explicit location data from search
     if (state?.mapCenter) {
       console.log(
         'Dashboard: Navigation effect triggered - setting map center to:',
@@ -102,11 +108,12 @@ const Dashboard = observer(function DashboardRender() {
         longitude: state.mapCenter.longitude,
       };
       setMapCenter(newCenter);
+      setShouldNavigateToCenter(true);
 
-      // Clear the navigation state after a delay to ensure the map has time to process it
-      // This is important for Chrome which may process updates differently
+      // Clear the navigation state and flag after a delay
       const clearStateTimeout = setTimeout(() => {
         navigate('/', { replace: true, state: {} });
+        setShouldNavigateToCenter(false);
       }, 100);
 
       return () => clearTimeout(clearStateTimeout);
@@ -133,12 +140,14 @@ const Dashboard = observer(function DashboardRender() {
         locations={locations}
         filterFn={filterFunction}
         initialCenter={mapCenter}
+        shouldNavigateToCenter={shouldNavigateToCenter}
         radiusKm={radiusKm}
         searchQuery={searchQuery}
         onSearchTextChange={setSearchQuery}
         onSearchButtonClick={handleSearch}
         onLocationClick={handleLocationClick}
         onBoundsChange={handleBoundsChange}
+        onMapMove={setMapCenter}
       />
 
       {/* Optional: Show selected location details */}

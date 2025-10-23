@@ -2,6 +2,8 @@ import { Dashboard } from './dashboardPresenter.tsx';
 import { Profile } from './profilePresenter.tsx';
 import { Plan } from './planPresenter.tsx';
 import { SearchPresenter } from './searchPresenter.tsx';
+import { FilmLocation } from './filmLocationPresenter.tsx';
+import { Film } from './filmPresenter.tsx';
 import { LayoutView } from './views/layoutView.tsx';
 
 import { observer } from 'mobx-react-lite';
@@ -62,6 +64,14 @@ function makeRouter({ model }: ReactRootProps) {
         {
           path: 'profile',
           element: <Profile model={model} />,
+        },
+        {
+          path: 'location',
+          element: <FilmLocation model={model} />,
+        },
+        {
+          path: 'film',
+          element: <Film model={model} />,
         },
       ],
     },

@@ -16,10 +16,39 @@ export function useFilmMap() {
     year?: number;
     director?: string;
   }>({});
-  const [mapCenter, setMapCenter] = useState({
-    latitude: 59.3293, // Default to Stockholm
-    longitude: 18.0686,
-  });
+
+  // Load map center from localStorage or use default
+  const getInitialMapCenter = () => {
+    try {
+      const saved = localStorage.getItem('filmpin_mapCenter');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load map center from localStorage:', e);
+    }
+    return {
+      latitude: 59.3293, // Default to Stockholm
+      longitude: 18.0686,
+    };
+  };
+
+  const [mapCenter, setMapCenterState] = useState(getInitialMapCenter());
+
+  // Wrapper to save to localStorage when map center changes
+  const setMapCenter = useCallback(
+    (center: { latitude: number; longitude: number }) => {
+      console.log('useFilmMap: Setting map center to:', center);
+      setMapCenterState(center);
+      try {
+        localStorage.setItem('filmpin_mapCenter', JSON.stringify(center));
+      } catch (e) {
+        console.error('Failed to save map center to localStorage:', e);
+      }
+    },
+    []
+  );
+
   const [radiusKm, setRadiusKm] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +138,8 @@ export function useFilmMap() {
   const handleBoundsChange = useCallback(
     (bounds: { north: number; south: number; east: number; west: number }) => {
       console.log('Map bounds changed:', bounds);
+      // Don't update mapCenter here - it causes unwanted zoom changes
+      // mapCenter is only updated when explicitly navigating (e.g., from search)
       // Optionally fetch new locations based on bounds
       // fetchLocations(bounds);
     },
