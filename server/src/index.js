@@ -59,6 +59,9 @@ app.listen(port, () =>
   console.log(`Server listening on http://localhost:${port}`),
 );
 
+const OMDB_KEY = process.env.OMDB_KEY;
+
+
 //app.get("*", (req, res) => {
 //res.sendFile(path.join(resolvePath("client", "dist"), "index.html"));
 //});

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import db from "../../db.js";
+import values from "../../db.js";
+const {db, OMDB_KEY, posterCache, plotCache} = values;
 
 const mapRouter = Router();
 
@@ -90,6 +91,59 @@ mapRouter.get("/getByLocation", (req, res) => {
   } else {
     return res.json({ success: false });
   }
+});
+
+mapRouter.get("/posterById", async (req, res) => {
+  const id = req.query.id;
+  // Check if its in memory
+  const poster = posterCache.get(id);
+
+  if (poster) {
+    res.setHeader("Content-Type", poster.type || "image/jpeg");
+    return res.end(poster.bytes);
+  }
+
+  const url = new URL("http://img.omdbapi.com/");
+  url.searchParams.set("apikey", OMDB_KEY);
+  url.searchParams.set("i", id);
+  const response = await fetch(url);
+
+  if (!response.ok) throw new Error(`OMDb poster get failed: ${response.status}`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const type = response.headers.get("content-type") || "image/jpeg";
+
+  posterCache.set(id, {bytes, type});
+
+  res.setHeader("Content-Type", type);
+  res.end(bytes);
+
+});
+
+mapRouter.get("/plotById", async (req, res) => {
+  const id = req.query.id;
+  // Check if its in memory
+  const poster = plotCache.get(id);
+
+  if (poster) {
+    const plot = poster.plot;
+    return res.json({success: true, plot});
+  }
+
+  const url = new URL("http://www.omdbapi.com/");
+  url.searchParams.set("apikey", OMDB_KEY);
+  url.searchParams.set("i", id);
+  url.searchParams.set("plot", "short");
+  url.searchParams.set("r", "json");
+  const response = await fetch(url);
+
+  if (!response.ok) throw new Error(`OMDb poster get failed: ${response.status}`);
+  const data = await response.json()
+  const plot = data.Plot;
+
+  plotCache.set(id, {plot});
+
+  return res.json({success: true, plot});
+
 });
 
 export default mapRouter;
