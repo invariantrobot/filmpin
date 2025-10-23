@@ -16,6 +16,7 @@ db.sqlite
 title.basics.tsv
 locationDataset.pk
 *.local
+imdbKey.txt
 
 # Editor directories and files
 .vscode/*

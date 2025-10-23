@@ -1,4 +1,11 @@
-# add Id to all queries
-# Posters and description
+Backend
+# Posters, description, duration, number of people visited, year, calls
+# Check pictures on place: Mapillary
+
+
+
+Frontend
+# Submit your own photo
+# 
 
 
