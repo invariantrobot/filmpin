@@ -1,6 +1,24 @@
-import { Search, X } from 'lucide-react';
+import { Search, X, MapPin, Loader2 } from 'lucide-react';
 
 export type SearchTab = 'films' | 'locations';
+
+// Geocoded location result from search
+export interface GeocodedLocation {
+  place_id: number;
+  lat: string;
+  lon: string;
+  display_name: string;
+  address?: {
+    road?: string;
+    suburb?: string;
+    city?: string;
+    county?: string;
+    state?: string;
+    country?: string;
+  };
+  type?: string;
+  importance?: number;
+}
 
 interface SearchViewProps {
   searchQuery: string;
@@ -9,8 +27,10 @@ interface SearchViewProps {
   onTabChange: (tab: SearchTab) => void;
   onBackClick: () => void;
   // Results will be added later
-  filmResults?: any[];
-  locationResults?: any[];
+  filmResults?: unknown[];
+  locationResults?: GeocodedLocation[];
+  onLocationClick?: (location: GeocodedLocation) => void;
+  isSearching?: boolean;
 }
 
 export function SearchView({
@@ -19,8 +39,9 @@ export function SearchView({
   activeTab,
   onTabChange,
   onBackClick,
-  filmResults = [],
   locationResults = [],
+  onLocationClick,
+  isSearching = false,
 }: SearchViewProps) {
   // Handle search text change
   function searchTextChangeACB(evt: React.ChangeEvent<HTMLInputElement>) {
@@ -30,6 +51,30 @@ export function SearchView({
   // Handle tab click
   function handleTabClickACB(tab: SearchTab) {
     return () => onTabChange(tab);
+  }
+
+  // Handle location click
+  function handleLocationClickACB(location: GeocodedLocation) {
+    return () => {
+      if (onLocationClick) {
+        onLocationClick(location);
+      }
+    };
+  }
+
+  // Format address from geocoded location
+  function formatAddress(location: GeocodedLocation): string {
+    const addr = location.address;
+    if (!addr) return location.display_name;
+
+    const parts = [
+      addr.road,
+      addr.suburb || addr.city,
+      addr.state,
+      addr.country,
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(', ') : location.display_name;
   }
 
   return (
@@ -100,12 +145,65 @@ export function SearchView({
               </p>
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-500">
-                {searchQuery
-                  ? 'No locations found. Start typing to search...'
-                  : 'Search for filming locations by name or address'}
-              </p>
+            <div>
+              {!searchQuery ? (
+                <div className="text-center py-12">
+                  <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    Search for any address or location
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Try searching for a city, street, or landmark
+                  </p>
+                </div>
+              ) : isSearching ? (
+                <div className="text-center py-12">
+                  <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-3 animate-spin" />
+                  <p className="text-gray-500">Searching locations...</p>
+                </div>
+              ) : locationResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    No locations found for "{searchQuery}"
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Try a different search term
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {locationResults.map((location) => (
+                    <button
+                      key={location.place_id}
+                      onClick={handleLocationClickACB(location)}
+                      className="w-full bg-white rounded-lg shadow hover:shadow-md transition-shadow p-4 text-left border border-gray-200 hover:border-blue-400"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 mt-1">
+                          <MapPin className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {location.address?.road ||
+                              location.address?.suburb ||
+                              location.address?.city ||
+                              location.type ||
+                              'Location'}
+                          </h3>
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {formatAddress(location)}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {parseFloat(location.lat).toFixed(4)},{' '}
+                            {parseFloat(location.lon).toFixed(4)}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1,8 +1,8 @@
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MapGL, { Marker } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
-import { Search } from 'lucide-react';
+import { Search, MapPin } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Types for film location data
@@ -57,6 +57,111 @@ export function MapView({
     latitude: initialCenter.latitude,
     zoom: 12,
   });
+  const [isGeolocating, setIsGeolocating] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
+
+  // Update map center when initialCenter prop changes (e.g., from search navigation)
+  useEffect(() => {
+    console.log('MapView: initialCenter changed:', initialCenter);
+    console.log('MapView: mapRef.current exists:', !!mapRef.current);
+    console.log('MapView: mapLoaded:', mapLoaded);
+
+    // Update viewState to match the new center
+    setViewState((prev) => ({
+      ...prev,
+      longitude: initialCenter.longitude,
+      latitude: initialCenter.latitude,
+    }));
+
+    // Animate to the new center if map is ready and loaded
+    if (mapRef.current && mapLoaded) {
+      // Use a small delay to ensure state has updated (Chrome fix)
+      const timeoutId = setTimeout(() => {
+        if (mapRef.current) {
+          console.log('MapView: Flying to new location');
+          mapRef.current.flyTo({
+            center: [initialCenter.longitude, initialCenter.latitude],
+            zoom: 14,
+            duration: 1500,
+            essential: true, // This animation is essential and will not be affected by prefers-reduced-motion
+          });
+        }
+      }, 50);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [initialCenter.latitude, initialCenter.longitude, mapLoaded]);
+
+  // Recenter to user's current location
+  function handleRecenterToCurrentLocation() {
+    if (!mapRef.current) return;
+
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsGeolocating(true);
+
+    // Try with high accuracy first
+    const tryGetLocation = (enableHighAccuracy: boolean) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          console.log('Got user location:', { latitude, longitude, accuracy });
+
+          if (mapRef.current) {
+            mapRef.current.flyTo({
+              center: [longitude, latitude],
+              zoom: 14,
+              duration: 1500,
+            });
+          }
+
+          setIsGeolocating(false);
+        },
+        (error) => {
+          console.error('Geolocation error:', error, 'Code:', error.code);
+
+          // If high accuracy failed and this was the first attempt, try without high accuracy
+          if (enableHighAccuracy && error.code === 2) {
+            console.log('Retrying without high accuracy...');
+            tryGetLocation(false);
+            return;
+          }
+
+          let errorMessage = 'Unable to get your location. ';
+
+          switch (error.code) {
+            case 1: // PERMISSION_DENIED
+              errorMessage +=
+                'Location permission was denied. Please check your browser settings.';
+              break;
+            case 2: // POSITION_UNAVAILABLE
+              errorMessage +=
+                'Your location is unavailable. This may happen if you are using a VPN or your device cannot determine its location.';
+              break;
+            case 3: // TIMEOUT
+              errorMessage += 'Location request timed out. Please try again.';
+              break;
+            default:
+              errorMessage += 'An unknown error occurred.';
+          }
+
+          alert(errorMessage);
+          setIsGeolocating(false);
+        },
+        {
+          enableHighAccuracy,
+          timeout: 15000,
+          maximumAge: 300000, // Accept cached position up to 5 minutes old
+        }
+      );
+    };
+
+    // Start with high accuracy
+    tryGetLocation(true);
+  }
 
   // Calculate dynamic radius based on zoom level
   // Higher zoom = closer view = smaller radius
@@ -238,66 +343,75 @@ export function MapView({
   };
 
   // Handle search bar click - navigate to search view
-  function handleSearchBarClickACB() {
-    navigate('/search');
+  function handleSearchBarClickACB(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('MapView: Search bar clicked, navigating to /search');
+    console.log('MapView: Current pathname:', window.location.hash);
+    // Force navigation even if already on /search by using a timestamp
+    navigate('/search', { state: { timestamp: Date.now() } });
   }
 
   return (
     <div className="relative w-full h-full">
       {/* Search bar overlay */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-md px-4">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 pointer-events-none">
         <div
-          className="flex items-center bg-white rounded-4xl shadow-lg p-2 cursor-pointer"
+          className="flex items-center bg-white rounded-4xl shadow-lg p-2 cursor-pointer pointer-events-auto hover:shadow-xl transition-shadow"
           onClick={handleSearchBarClickACB}
         >
           <Search className="h-6 w-6 text-gray-400 ml-2" />
           <input
-            onChange={searchTextChangeACB}
-            onKeyDown={searchTriggerCheckACB}
             type="text"
             placeholder="Search for movies or locations"
             value={searchQuery || ''}
             className="flex-1 px-2 py-2 outline-none cursor-pointer"
             readOnly
+            onClick={handleSearchBarClickACB}
           />
         </div>
       </div>
 
-      {/* Map container */}
-      <MapGL
-        ref={mapRef}
-        {...viewState}
-        onMove={(evt) => setViewState(evt.viewState)}
-        onMoveEnd={handleMoveEnd}
-        style={{ width: '100%', height: '100%' }}
-        mapStyle={{
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '&copy; OpenStreetMap Contributors',
-              maxzoom: 19,
-            },
-          },
-          layers: [
-            {
-              id: 'osm',
-              type: 'raster',
-              source: 'osm',
-              paint: {
-                'raster-saturation': -1,
-                'raster-contrast': 0.2,
-                'raster-brightness-min': 0.2,
+      {/* Map container - explicitly set lower z-index */}
+      <div className="absolute inset-0 z-0">
+        <MapGL
+          ref={mapRef}
+          {...viewState}
+          onMove={(evt) => setViewState(evt.viewState)}
+          onMoveEnd={handleMoveEnd}
+          onLoad={() => {
+            console.log('MapView: Map loaded');
+            setMapLoaded(true);
+          }}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle={{
+            version: 8,
+            sources: {
+              osm: {
+                type: 'raster',
+                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; OpenStreetMap Contributors',
+                maxzoom: 19,
               },
             },
-          ],
-        }}
-        attributionControl={false}
-      >
-        {/* Render radius circle (optional visualization) */}
-        {/* Uncomment to show search radius
+            layers: [
+              {
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+                paint: {
+                  'raster-saturation': -1,
+                  'raster-contrast': 0.2,
+                  'raster-brightness-min': 0.2,
+                },
+              },
+            ],
+          }}
+          attributionControl={false}
+        >
+          {/* Render radius circle (optional visualization) */}
+          {/* Uncomment to show search radius
         <Source
           id="radius"
           type="geojson"
@@ -314,18 +428,33 @@ export function MapView({
         </Source>
         */}
 
-        {/* Render location markers */}
-        {groupedLocations()
-          .filter((group) => isWithinRadius(group[0]))
-          .map((group) => renderMarker(group))}
-      </MapGL>
+          {/* Render location markers */}
+          {groupedLocations()
+            .filter((group) => isWithinRadius(group[0]))
+            .map((group) => renderMarker(group))}
+        </MapGL>
+      </div>
 
       {/* Info panel */}
-      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 z-10">
+      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 z-10 pointer-events-none">
         <p className="text-sm text-gray-600">
           Showing {visibleLocationsCount} locations within {dynamicRadius}km
         </p>
       </div>
+
+      {/* Recenter button - bottom right */}
+      <button
+        onClick={handleRecenterToCurrentLocation}
+        disabled={isGeolocating}
+        className="absolute bottom-4 right-4 bg-white hover:bg-gray-50 disabled:bg-gray-100 rounded-full shadow-lg p-4 z-10 transition-all hover:shadow-xl active:scale-95 disabled:cursor-not-allowed pointer-events-auto"
+        title="Center map on my location"
+      >
+        {isGeolocating ? (
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <MapPin className="w-6 h-6 text-blue-600" />
+        )}
+      </button>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MapView } from './views/mapView';
 import { useFilmMap } from './hooks/useFilmMap';
 import type { FilmLocation } from './views/mapView';
@@ -58,6 +59,8 @@ const sampleLocations: FilmLocation[] = [
  * Displays the main discover/map view with film locations
  */
 const Dashboard = observer(function DashboardRender() {
+  const routerLocation = useLocation();
+  const navigate = useNavigate();
   const {
     locations,
     searchQuery,
@@ -69,6 +72,7 @@ const Dashboard = observer(function DashboardRender() {
     setSearchQuery,
     setLocations,
     setSelectedLocation,
+    setMapCenter,
     filterFunction,
     handleSearch,
     handleLocationClick,
@@ -79,6 +83,35 @@ const Dashboard = observer(function DashboardRender() {
   useEffect(() => {
     setLocations(sampleLocations);
   }, [setLocations]);
+
+  // Handle navigation from search with location data
+  useEffect(() => {
+    const state = routerLocation.state as {
+      mapCenter?: { latitude: number; longitude: number };
+      selectedLocationName?: string;
+    } | null;
+
+    if (state?.mapCenter) {
+      console.log(
+        'Dashboard: Navigation effect triggered - setting map center to:',
+        state.mapCenter
+      );
+      // Force a new object reference to ensure the useEffect in MapView triggers
+      const newCenter = {
+        latitude: state.mapCenter.latitude,
+        longitude: state.mapCenter.longitude,
+      };
+      setMapCenter(newCenter);
+
+      // Clear the navigation state after a delay to ensure the map has time to process it
+      // This is important for Chrome which may process updates differently
+      const clearStateTimeout = setTimeout(() => {
+        navigate('/', { replace: true, state: {} });
+      }, 100);
+
+      return () => clearTimeout(clearStateTimeout);
+    }
+  }, [routerLocation.state, setMapCenter, navigate]);
 
   if (error) {
     return (
@@ -110,7 +143,7 @@ const Dashboard = observer(function DashboardRender() {
 
       {/* Optional: Show selected location details */}
       {selectedLocation && (
-        <div className="absolute top-20 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-20">
+        <div className="absolute top-20 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-20 pointer-events-auto">
           <button
             onClick={() => setSelectedLocation(null)}
             className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
