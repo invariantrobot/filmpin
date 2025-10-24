@@ -1,8 +1,15 @@
 import { Router } from "express";
 import values from "../../db.js";
+import path from "path";
+import fs from "fs/promises";
+import { fileURLToPath } from "url";
 const {db, OMDB_KEY, posterCache, plotCache} = values;
 
 const mapRouter = Router();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const POSTERS_DIR = path.resolve(__dirname, "..", "posters");
 
 mapRouter.get("/getAllTitles", (req, res) => {
   const allMovies = db.prepare("SELECT * FROM movies").all();
@@ -93,57 +100,15 @@ mapRouter.get("/getByLocation", (req, res) => {
   }
 });
 
-mapRouter.get("/posterById", async (req, res) => {
+mapRouter.get("/getPosterById", async (req, res) => {
   const id = req.query.id;
-  // Check if its in memory
-  const poster = posterCache.get(id);
+  const p = path.join(POSTERS_DIR, `${id}.${"jpg"}`);
 
-  if (poster) {
-    res.setHeader("Content-Type", poster.type || "image/jpeg");
-    return res.end(poster.bytes);
-  }
+  await fs.access(p);
+  return res.sendFile(p);
 
-  const url = new URL("http://img.omdbapi.com/");
-  url.searchParams.set("apikey", OMDB_KEY);
-  url.searchParams.set("i", id);
-  const response = await fetch(url);
-
-  if (!response.ok) throw new Error(`OMDb poster get failed: ${response.status}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const type = response.headers.get("content-type") || "image/jpeg";
-
-  posterCache.set(id, {bytes, type});
-
-  res.setHeader("Content-Type", type);
-  res.end(bytes);
 
 });
 
-mapRouter.get("/plotById", async (req, res) => {
-  const id = req.query.id;
-  // Check if its in memory
-  const poster = plotCache.get(id);
-
-  if (poster) {
-    const plot = poster.plot;
-    return res.json({success: true, plot});
-  }
-
-  const url = new URL("http://www.omdbapi.com/");
-  url.searchParams.set("apikey", OMDB_KEY);
-  url.searchParams.set("i", id);
-  url.searchParams.set("plot", "short");
-  url.searchParams.set("r", "json");
-  const response = await fetch(url);
-
-  if (!response.ok) throw new Error(`OMDb poster get failed: ${response.status}`);
-  const data = await response.json()
-  const plot = data.Plot;
-
-  plotCache.set(id, {plot});
-
-  return res.json({success: true, plot});
-
-});
 
 export default mapRouter;
