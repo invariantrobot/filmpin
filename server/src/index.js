@@ -46,6 +46,9 @@ app.use(sessionConf);
 // Serve static files
 //app.use(express.static(resolvePath("client", "dist")));
 
+// Serve poster images
+app.use("/posters", express.static("posters"));
+
 // Register middlewares that parse the body of the request, available under req.body property
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -60,7 +63,6 @@ app.listen(port, () =>
 );
 
 const OMDB_KEY = process.env.OMDB_KEY;
-
 
 //app.get("*", (req, res) => {
 //res.sendFile(path.join(resolvePath("client", "dist"), "index.html"));

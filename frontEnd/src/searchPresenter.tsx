@@ -24,14 +24,48 @@ export interface GeocodedLocation {
 
 export function SearchPresenter() {
   console.log('SearchPresenter: Component rendering');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<SearchTab>('films');
-  const [filmResults, setFilmResults] = useState<Movie[]>([]);
+
+  // Restore state from sessionStorage on mount
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const saved = sessionStorage.getItem('searchQuery');
+    return saved || '';
+  });
+  const [activeTab, setActiveTab] = useState<SearchTab>(() => {
+    const saved = sessionStorage.getItem('searchActiveTab');
+    return (saved as SearchTab) || 'films';
+  });
+  const [filmResults, setFilmResults] = useState<Movie[]>(() => {
+    const saved = sessionStorage.getItem('searchFilmResults');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [locationResults, setLocationResults] = useState<GeocodedLocation[]>(
-    []
+    () => {
+      const saved = sessionStorage.getItem('searchLocationResults');
+      return saved ? JSON.parse(saved) : [];
+    }
   );
   const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
+
+  // Save search state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('searchQuery', searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    sessionStorage.setItem('searchActiveTab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    sessionStorage.setItem('searchFilmResults', JSON.stringify(filmResults));
+  }, [filmResults]);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      'searchLocationResults',
+      JSON.stringify(locationResults)
+    );
+  }, [locationResults]);
 
   // Log mount/unmount for debugging
   useEffect(() => {
@@ -92,7 +126,15 @@ export function SearchPresenter() {
   // Debounced search for films tab
   useEffect(() => {
     if (activeTab !== 'films' || !searchQuery.trim()) {
-      setFilmResults([]);
+      // Only clear results if we're changing the query to empty
+      if (!searchQuery.trim()) {
+        setFilmResults([]);
+      }
+      return;
+    }
+
+    // Skip search if we already have cached results from sessionStorage
+    if (filmResults.length > 0) {
       return;
     }
 
@@ -101,12 +143,20 @@ export function SearchPresenter() {
     }, 500); // Debounce for 500ms
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, activeTab, searchFilms]);
+  }, [searchQuery, activeTab, searchFilms, filmResults.length]);
 
   // Debounced geocoding search for locations tab
   useEffect(() => {
     if (activeTab !== 'locations' || !searchQuery.trim()) {
-      setLocationResults([]);
+      // Only clear results if we're changing the query to empty
+      if (!searchQuery.trim()) {
+        setLocationResults([]);
+      }
+      return;
+    }
+
+    // Skip search if we already have cached results from sessionStorage
+    if (locationResults.length > 0) {
       return;
     }
 
@@ -115,10 +165,16 @@ export function SearchPresenter() {
     }, 500); // Debounce for 500ms
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, activeTab, searchLocations]);
+  }, [searchQuery, activeTab, searchLocations, locationResults.length]);
 
   function handleSearchTextChange(text: string) {
     setSearchQuery(text);
+    // Clear cached results when user types a new query
+    // This allows the search effect to run again
+    if (text !== searchQuery) {
+      setFilmResults([]);
+      setLocationResults([]);
+    }
   }
 
   function handleTabChange(tab: SearchTab) {
@@ -134,6 +190,12 @@ export function SearchPresenter() {
   }
 
   function handleBackClick() {
+    // Clear search state when explicitly going back to dashboard
+    sessionStorage.removeItem('searchQuery');
+    sessionStorage.removeItem('searchActiveTab');
+    sessionStorage.removeItem('searchFilmResults');
+    sessionStorage.removeItem('searchLocationResults');
+    sessionStorage.removeItem('searchScrollPosition');
     navigate('/');
   }
 

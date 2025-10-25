@@ -18,6 +18,8 @@ export interface Movie {
   year?: number;
   posterUrl?: string; // URL to movie poster
   rating?: number;
+  runTime?: number; // Duration in minutes
+  plot?: string; // Film description
   // Add other movie fields as needed
 }
 

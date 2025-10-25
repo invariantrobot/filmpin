@@ -1,4 +1,5 @@
 import { Search, X, MapPin, Loader2, Film } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { Movie } from '../services/api';
 
 export type SearchTab = 'films' | 'locations';
@@ -46,6 +47,49 @@ export function SearchView({
   onFilmClick,
   isSearching = false,
 }: SearchViewProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRestoredRef = useRef(false);
+
+  // Reset scroll restoration flag when search query changes
+  useEffect(() => {
+    scrollRestoredRef.current = false;
+  }, [searchQuery]);
+
+  // Restore scroll position after results are rendered
+  useEffect(() => {
+    if (scrollRestoredRef.current) return;
+
+    const savedScrollPosition = sessionStorage.getItem('searchScrollPosition');
+    if (savedScrollPosition && scrollContainerRef.current) {
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = parseInt(
+            savedScrollPosition,
+            10
+          );
+          scrollRestoredRef.current = true;
+        }
+      });
+    }
+  }, [filmResults, locationResults]);
+
+  // Save scroll position when scrolling
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      sessionStorage.setItem(
+        'searchScrollPosition',
+        container.scrollTop.toString()
+      );
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Handle search text change
   function searchTextChangeACB(evt: React.ChangeEvent<HTMLInputElement>) {
     onSearchTextChange(evt.target.value);
@@ -95,6 +139,14 @@ export function SearchView({
     const colorIndex = title.length % colors.length;
     const initials = title.substring(0, 3).toUpperCase();
     return `https://placehold.co/300x450/${colors[colorIndex]}/white?text=${encodeURIComponent(initials)}`;
+  }
+
+  // Get poster URL from server or use placeholder
+  function getPosterUrl(movieId?: string, title?: string): string {
+    if (movieId) {
+      return `http://localhost:8989/posters/${movieId}.jpg`;
+    }
+    return getPlaceholderPoster(title || 'N/A');
   }
 
   return (
@@ -154,7 +206,7 @@ export function SearchView({
       </div>
 
       {/* Results container */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto p-4">
           {activeTab === 'films' ? (
             <div>
@@ -189,13 +241,14 @@ export function SearchView({
                       onClick={handleFilmClickACB(film)}
                       className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden text-left border border-gray-200 hover:border-blue-400 flex flex-col"
                     >
-                      <div className="aspect-[2/3] bg-gray-100 relative overflow-hidden flex-shrink-0">
+                      <div
+                        className="relative w-full bg-gray-100 flex-shrink-0"
+                        style={{ paddingBottom: '150%' }}
+                      >
                         <img
-                          src={
-                            film.posterUrl || getPlaceholderPoster(film.title)
-                          }
+                          src={getPosterUrl(film.id, film.title)}
                           alt={film.title}
-                          className="w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = getPlaceholderPoster(film.title);

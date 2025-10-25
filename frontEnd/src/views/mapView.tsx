@@ -92,6 +92,22 @@ export function MapView({
     null
   );
 
+  // Generate placeholder poster URL
+  function getPlaceholderPoster(title: string): string {
+    const colors = ['457b9d', 'e63946', '2a9d8f', 'f4a261', '8338ec', 'fb5607'];
+    const colorIndex = title.length % colors.length;
+    const initials = title.substring(0, 3).toUpperCase();
+    return `https://placehold.co/300x450/${colors[colorIndex]}/white?text=${encodeURIComponent(initials)}`;
+  }
+
+  // Get poster URL from server or use placeholder
+  function getPosterUrl(movieId?: string, title?: string): string {
+    if (movieId) {
+      return `http://localhost:8989/posters/${movieId}.jpg`;
+    }
+    return getPlaceholderPoster(title || 'N/A');
+  }
+
   // Create Supercluster instance
   const superclusterRef = useRef<Supercluster>(
     new Supercluster({
@@ -495,12 +511,24 @@ export function MapView({
                 >
                   <div className="cursor-pointer transition-all hover:scale-110 animate-in zoom-in duration-300">
                     <div className="relative">
-                      {location.imageUrl ? (
+                      {location.imageUrl || location.movieId ? (
                         <div className="w-14 h-14 border-4 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
                           <img
-                            src={location.imageUrl}
+                            src={
+                              location.imageUrl ||
+                              getPosterUrl(
+                                location.movieId,
+                                location.movieTitle || location.title
+                              )
+                            }
                             alt={location.title}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = getPlaceholderPoster(
+                                location.movieTitle || location.title
+                              );
+                            }}
                           />
                         </div>
                       ) : (
@@ -586,12 +614,24 @@ export function MapView({
       >
         <div className="cursor-pointer transition-transform hover:scale-110">
           <div className="relative">
-            {location.imageUrl ? (
+            {location.imageUrl || location.movieId ? (
               <div className="w-16 h-16 border-5 border-white shadow-lg overflow-hidden bg-gray-200 rounded-lg">
                 <img
-                  src={location.imageUrl}
+                  src={
+                    location.imageUrl ||
+                    getPosterUrl(
+                      location.movieId,
+                      location.movieTitle || location.title
+                    )
+                  }
                   alt={location.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = getPlaceholderPoster(
+                      location.movieTitle || location.title
+                    );
+                  }}
                 />
               </div>
             ) : (
