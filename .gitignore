@@ -17,6 +17,8 @@ title.basics.tsv
 locationDataset.pk
 *.local
 imdbKey.txt
+.env
+omdb.txt
 
 # Editor directories and files
 .vscode/*
@@ -32,6 +34,8 @@ imdbKey.txt
 # Directories
 node_modules/
 data/
+posters/
+plots/
 
 
 

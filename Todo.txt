@@ -1,5 +1,4 @@
 Backend
-# Posters, description, duration, number of people visited, year, calls
 # Check pictures on place: Mapillary
 
 

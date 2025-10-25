@@ -13,7 +13,7 @@ with open("cordinates.pk", "rb") as f:
 cur = conn.cursor()
 conn.execute("PRAGMA foreign_keys=ON")
 
-cur.execute("CREATE TABLE IF NOT EXISTS movies(id TEXT PRIMARY KEY, title TEXT NOT NULL, genre TEXT)")
+cur.execute("CREATE TABLE IF NOT EXISTS movies(id TEXT PRIMARY KEY, title TEXT NOT NULL, genre TEXT, year TEXT, runTime TEXT)")
 
 cur.execute("CREATE TABLE IF NOT EXISTS locations(id INTEGER PRIMARY KEY, movie_id TEXT NOT NULL, lat REAL, lon REAL, place TEXT, info TEXT, FOREIGN KEY(movie_id) REFERENCES movies(id))")
 iter = 0
@@ -21,9 +21,11 @@ for id in locations:
     titleFrame = titlesFrame.filter(pl.col("tconst") == id)
     title = titleFrame.select("primaryTitle").to_series().to_list()[0]
     genre = titleFrame.select("genres").to_series().to_list()[0].split(",")[0]
+    year = titleFrame.select("startYear").to_series().to_list()[0]
+    runtime = titleFrame.select("runtimeMinutes").to_series().to_list()[0]
     cur.execute(
-        "INSERT INTO movies (id, title, genre) VALUES (?, ?, ?)",
-        (id, title, genre)
+        "INSERT INTO movies (id, title, genre, year, runTime) VALUES (?, ?, ?, ?, ?)",
+        (id, title, genre, year, runtime)
     )
 
     allLocations = locations[id]
