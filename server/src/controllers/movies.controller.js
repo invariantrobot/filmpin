@@ -3,7 +3,8 @@ import values from "../../db.js";
 import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
-const {db, OMDB_KEY, posterCache, plotCache} = values;
+import { fail } from "assert";
+const {db, OMDB_KEY, MAPILLARY_KEY, posterCache, plotCache} = values;
 
 const mapRouter = Router();
 
@@ -81,6 +82,74 @@ mapRouter.get("/getByTitle", (req, res) => {
   } else {
     return res.json({ success: false });
   }
+});
+
+
+mapRouter.get("/locationPictureById", async (req, res) => {
+  const id = req.query.id;
+
+  if (!id) {
+    return res.json({ success: false });
+  }
+  const place = db.prepare("SELECT lat, lon FROM locations WHERE id = ?").get(id);
+  console.log(place);
+  var foundImage = false;
+  var radius = 10;
+
+  var img = null;
+
+  while (!foundImage) {
+    // Draw a box where an image might be, might have to add radius (30) if too small
+    const dLat = radius / 111_320;
+    const dLon = radius / (111_320 * Math.cos((place.lat * Math.PI) / 180));
+    const minLon = place.lon - dLon;
+    const minLat = place.lat - dLat;
+    const maxLon = place.lon + dLon;
+    const maxLat = place.lat + dLat;
+
+    const box = `${minLon},${minLat},${maxLon},${maxLat}`;
+
+    console.log(box);
+
+    const u = new URL("https://graph.mapillary.com/images");
+    u.searchParams.set("access_token", MAPILLARY_KEY);
+    u.searchParams.set("fields", "id,thumb_1024_url,computed_geometry");
+    u.searchParams.set("bbox", box);
+    u.searchParams.set("limit", "1");
+
+    const response = await fetch(u);
+
+    console.log(response)
+
+    if (!response.ok) {
+      console.log("something wrong", response.status);
+      return res.status(404).json({success: false});
+    }
+    const dataAll = await response.json();
+    const imgTemp = dataAll.data?.[0];
+
+    if (!imgTemp?.thumb_1024_url) {
+      console.log("Found no image, increasing radius");
+    } else {
+      console.log("Found image")
+      foundImage = true;
+      img = imgTemp;  
+    }
+    radius += 10;
+
+    
+  }
+
+  
+
+  const imgResp = await fetch(img.thumb_1024_url);
+
+  const buf = Buffer.from(await imgResp.arrayBuffer());
+  res.setHeader("Content-Type", imgResp.headers.get("content-type") || "image/jpeg");
+
+  return res.end(buf);
+
+
 });
 
 mapRouter.get("/getByLocation", (req, res) => {
