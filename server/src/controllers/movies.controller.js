@@ -136,11 +136,7 @@ mapRouter.get("/locationPictureById", async (req, res) => {
       img = imgTemp;  
     }
     radius += 10;
-
-    
   }
-
-  
 
   const imgResp = await fetch(img.thumb_1024_url);
 
