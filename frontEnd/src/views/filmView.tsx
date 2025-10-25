@@ -23,6 +23,14 @@ export function FilmView({ film, locations, isLoading }: FilmViewProps) {
     return `https://placehold.co/300x450/${colors[colorIndex]}/white?text=${encodeURIComponent(initials)}`;
   }
 
+  // Get poster URL from server or use placeholder
+  function getPosterUrl(imdbId?: string, title?: string): string {
+    if (imdbId) {
+      return `http://localhost:8989/posters/${imdbId}.jpg`;
+    }
+    return getPlaceholderPoster(title || 'N/A');
+  }
+
   // Handle location click
   function handleLocationClick(location: Location) {
     navigate('/location', {
@@ -62,7 +70,15 @@ export function FilmView({ film, locations, isLoading }: FilmViewProps) {
     );
   }
 
-  const posterUrl = film.posterUrl || getPlaceholderPoster(film.title);
+  const posterUrl = getPosterUrl(film.id, film.title);
+
+  // Helper to format duration
+  function formatDuration(minutes?: number): string {
+    if (!minutes || isNaN(minutes)) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m}m`;
+  }
 
   return (
     <div className="MyFilm">
@@ -108,13 +124,11 @@ export function FilmView({ film, locations, isLoading }: FilmViewProps) {
         </h2>
         <p className="text-md text-gray-600 text-center">
           {film.year || '19XX'}
-          {film.genre && ` | ${film.genre}`}
+          {film.runTime && ` | ${formatDuration(film.runTime)}`}
+          {film.genre ? ` | ${film.genre}` : ' | genre unknown'}
         </p>
         <p className="px-4 py-2 text-gray-700 text-left max-w-md mx-auto">
-          Movie description lorem ipsum dolor sit amet, consectetur adipiscing
-          elit. Sed do eiusmod tempor incididunt ut labore et dolore magna
-          aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco
-          laboris.
+          {film.plot || 'No description available.'}
         </p>
       </div>
       <div>

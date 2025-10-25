@@ -15,7 +15,8 @@ export function transformToFilmLocation(
     longitude: location.lon,
     title: location.place,
     movieTitle: movie?.title || 'Unknown Movie',
-    imageUrl: `https://placehold.co/300x300/457b9d/white?text=${encodeURIComponent(movie?.title?.substring(0, 3) || 'MOV')}`,
+    // Don't set imageUrl - let the map view load posters from server
+    imageUrl: undefined,
     info: location.info,
   };
 }
