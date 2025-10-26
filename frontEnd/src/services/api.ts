@@ -190,3 +190,30 @@ export async function getGenres(): Promise<string[]> {
     throw error;
   }
 }
+
+/**
+ * Fetch location background image from Mapillary by location ID
+ * Returns the image URL if successful, null if failed
+ */
+export async function getLocationPictureById(
+  locationId: number
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/locationPictureById?id=${locationId}`
+    );
+
+    if (!response.ok) {
+      console.error('Failed to fetch location picture:', response.status);
+      return null;
+    }
+
+    // The endpoint returns the image directly as a blob
+    const blob = await response.blob();
+    // Create a blob URL that can be used as an image source
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error('Error fetching location picture:', error);
+    return null;
+  }
+}

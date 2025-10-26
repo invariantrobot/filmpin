@@ -8,12 +8,14 @@ import {
   DollarSign,
   Cloud,
   ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import { MapView } from './mapView';
 import type { FilmLocation } from './mapView';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Location } from '../services/api';
+import { getLocationPictureById } from '../services/api';
 
 interface FilmLocationViewProps {
   model: unknown;
@@ -26,10 +28,73 @@ export function FilmLocationView({
   movieTitle,
 }: FilmLocationViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  const DEFAULT_IMAGE = '/public/test/location-test.jpg';
+  const TIMEOUT_MS = 5000; // 5 seconds timeout
 
   console.log('FilmLocationView: Received location:', location);
   console.log('FilmLocationView: Received movieTitle:', movieTitle);
+
+  // Fetch Mapillary background image when location is available
+  useEffect(() => {
+    let currentImageUrl: string | null = null;
+    let isCancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    if (location?.id) {
+      setIsLoading(true);
+
+      // Set a timeout to fall back to default image
+      timeoutId = setTimeout(() => {
+        if (!isCancelled) {
+          console.log('Mapillary image loading timed out, using default');
+          setBackgroundImage(DEFAULT_IMAGE);
+          setIsLoading(false);
+        }
+      }, TIMEOUT_MS);
+
+      getLocationPictureById(location.id)
+        .then((imageUrl) => {
+          if (!isCancelled) {
+            clearTimeout(timeoutId);
+            if (imageUrl) {
+              currentImageUrl = imageUrl;
+              setBackgroundImage(imageUrl);
+            } else {
+              // API returned null, use default
+              setBackgroundImage(DEFAULT_IMAGE);
+            }
+            setIsLoading(false);
+          }
+        })
+        .catch((error) => {
+          if (!isCancelled) {
+            clearTimeout(timeoutId);
+            console.error('Error loading Mapillary image:', error);
+            setBackgroundImage(DEFAULT_IMAGE);
+            setIsLoading(false);
+          }
+        });
+    } else {
+      // No location ID, use default immediately
+      setBackgroundImage(DEFAULT_IMAGE);
+      setIsLoading(false);
+    }
+
+    // Cleanup blob URL when component unmounts or location changes
+    return () => {
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentImageUrl);
+      }
+    };
+  }, [location?.id]);
 
   // Handler to navigate to dashboard map centered on this location
   const handlePinClick = (loc: FilmLocation) => {
@@ -73,8 +138,18 @@ export function FilmLocationView({
     <div className="MyFilmLocation">
       <div
         className="relative h-100 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: 'url(/public/test/location-test.jpg)' }}
+        style={{
+          backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+          backgroundColor: isLoading ? '#1a1a1a' : undefined,
+        }}
       >
+        {/* Loading spinner overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-10">
+            <Loader2 className="w-16 h-16 text-white animate-spin" />
+          </div>
+        )}
+
         {/* Navigation buttons */}
         <div className="absolute top-8 left-8 right-8 flex justify-between z-20">
           <button
