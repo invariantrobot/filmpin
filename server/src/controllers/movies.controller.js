@@ -97,8 +97,13 @@ mapRouter.get("/locationPictureById", async (req, res) => {
   var radius = 10;
 
   var img = null;
+  var increase = 10;
 
-  while (!foundImage) {
+  var maxIter = 20;
+
+  var iter = 0;
+
+  while ((!foundImage)&&(maxIter > iter)) {
     // Draw a box where an image might be, might have to add radius (30) if too small
     const dLat = radius / 111_320;
     const dLon = radius / (111_320 * Math.cos((place.lat * Math.PI) / 180));
@@ -119,6 +124,8 @@ mapRouter.get("/locationPictureById", async (req, res) => {
 
     const response = await fetch(u);
 
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
     console.log(response)
 
     if (!response.ok) {
@@ -135,7 +142,14 @@ mapRouter.get("/locationPictureById", async (req, res) => {
       foundImage = true;
       img = imgTemp;  
     }
-    radius += 10;
+    radius += increase;
+    increase += 10;
+    iter += 1;
+    await sleep(increase/100);
+  }
+
+  if (iter > 19) {
+    return res.status(404);
   }
 
   const imgResp = await fetch(img.thumb_1024_url);
