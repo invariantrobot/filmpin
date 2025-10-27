@@ -103,7 +103,7 @@ export function MapView({
   // Get poster URL from server or use placeholder
   function getPosterUrl(movieId?: string, title?: string): string {
     if (movieId) {
-      return `http://localhost:8989/posters/${movieId}.jpg`;
+      return `http://localhost:8989/api/getPosterById?id=${movieId}`;
     }
     return getPlaceholderPoster(title || 'N/A');
   }

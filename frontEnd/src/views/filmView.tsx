@@ -26,7 +26,7 @@ export function FilmView({ film, locations, isLoading }: FilmViewProps) {
   // Get poster URL from server or use placeholder
   function getPosterUrl(imdbId?: string, title?: string): string {
     if (imdbId) {
-      return `http://localhost:8989/posters/${imdbId}.jpg`;
+      return `http://localhost:8989/api/getPosterById?id=${imdbId}`;
     }
     return getPlaceholderPoster(title || 'N/A');
   }

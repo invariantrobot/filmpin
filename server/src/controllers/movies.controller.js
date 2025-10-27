@@ -183,10 +183,12 @@ mapRouter.get("/getPosterById", async (req, res) => {
   const id = req.query.id;
   const p = path.join(POSTERS_DIR, `${id}.${"jpg"}`);
 
+  res.set("Content-Type", "image/jpeg");
+  res.set("Cache-Control", "public, max-age=604800, immutable");
+
   await fs.access(p);
+  res.status(200);
   return res.sendFile(p);
-
-
 });
 
 
