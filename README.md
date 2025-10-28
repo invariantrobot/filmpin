@@ -1,3 +1,17 @@
+# To run the project:
+Download database and posters from this link:
+https://drive.google.com/drive/folders/1C_B4r4T9Wsf9U3mQr1E0wYqWyFB_XB2m?usp=sharing
+Place database.db in server/ and unzip the folder to server/src/
+
+Enter the server directory and run:
+npm install
+npm start
+
+Enter the frontEnd directory and run:
+npm run dev
+Go to the assigned localhost
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
