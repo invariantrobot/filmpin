@@ -3,10 +3,23 @@ import cv2
 def isHotSpot(matches, frame, photoPlace):
     # Returns True if the current location for the screenshot is a hotspot of matches
     spotAmount = 0
+    
+    iter = 0
+
+    for match in matches:
+        p1 = kp1[match.queryIdx].pt
+        pointX, pointY = round(p1[0]), round(p1[1])
+        if (photoPlace[1][1] > pointX > photoPlace[1][0]) and (photoPlace[0][1] > pointY > photoPlace[0][0]):
+            spotAmount += 1
+        if iter > BEST_AMOUNT:
+            break
+        iter += 1
+    print(spotAmount)
+    
+    if spotAmount > BEST_AMOUNT*PICTURE_RATIO:
+        return True
+
     return False
-
-
-
 
 cam = cv2.VideoCapture(0)
 
@@ -21,9 +34,11 @@ BORDER_SIZE = 10
 OFF_WHITE = (227, 238, 246)
 OPACITY = 0.8
 HOTSPOT_THRESHOLD = 4
-RELATIVE_SIZE = 0.2
+RELATIVE_SIZE = 0.5
+BEST_AMOUNT = 10
+PICTURE_RATIO = 0.5
 
-orgPic = cv2.imread("pentest.png")
+orgPic = cv2.imread("booktest.png")
 
 shape_org = orgPic.shape[:2]
 scaleFactor = RELATIVE_SIZE*cam_H/shape_org[0]
@@ -60,6 +75,7 @@ pos_h_1 -= (pos_h_1 - pos_h_0) - overlay_h
 
 bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 image_detection = False
+pictureTime = False
 
 
 while True:
@@ -97,9 +113,14 @@ while True:
     cv2.imshow("test", frame)
     
     # Take a photo if the picture is in a hotspot
-    
-    if isHotSpot(matches, (H, W), ((pos_w_0, pos_w_1),(pos_h_0, pos_h_1))):
-        img_name = "detected_match_{}.png".format(img_counter)
+    if image_detection:
+        if isHotSpot(matches, (H, W), ((pos_w_0, pos_w_1),(pos_h_0, pos_h_1))):
+            img_name = f"detected_match_{img_counter}.png".format(img_counter)
+            print("Found hotspot")
+            if pictureTime:
+                cv2.imwrite(img_name, frame)
+                
+                img_counter += 1
 
     k = cv2.waitKey(1)
     if k%256 == 27:
@@ -107,12 +128,17 @@ while True:
         print("Escape hit, closing...")
         break
     elif k%256 == 32:
-        image_detection = True
+        image_detection = not image_detection
+        if image_detection:
+            print("image detection engaged")
+        else:
+            print("image detection disengaged")
         # SPACE pressed
-        img_name = "opencv_frame_{}.png".format(img_counter)
-        cv2.imwrite(img_name, frame)
-        print("{} written!".format(img_name))
-        img_counter += 1
+    elif k%256 == ord('s'):
+        pictureTime = not pictureTime
+        if pictureTime:
+            print("Taking pictures now")
+        
 
 cam.release()
 
