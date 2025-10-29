@@ -1,7 +1,10 @@
 import cv2
 
-def hotSpot(matches, dimensions):
-    
+def isHotSpot(matches, frame, photoPlace):
+    # Returns True if the current location for the screenshot is a hotspot of matches
+    spotAmount = 0
+    return False
+
 
 
 
@@ -11,12 +14,21 @@ cv2.namedWindow("test")
 
 orb = cv2.ORB_create()
 
+ret, frame = cam.read()
+cam_H, cam_W = frame.shape[:2]
+
 BORDER_SIZE = 10
 OFF_WHITE = (227, 238, 246)
 OPACITY = 0.8
 HOTSPOT_THRESHOLD = 4
+RELATIVE_SIZE = 0.2
 
-overlay_img = cv2.resize(cv2.imread("Pen.png"), (315, 89))
+orgPic = cv2.imread("pentest.png")
+
+shape_org = orgPic.shape[:2]
+scaleFactor = RELATIVE_SIZE*cam_H/shape_org[0]
+
+overlay_img = cv2.resize(orgPic, (round(shape_org[1]*scaleFactor), round(shape_org[0]*scaleFactor)))
 
 overlay_w, overlay_h, colour = overlay_img.shape
 
@@ -60,11 +72,10 @@ while True:
     if not ret:
         print("failed to grab frame")
         break
+    
+    # Calucate features and map them
     kp1, des1 = orb.detectAndCompute(frame, None)
     kp2, des2 = orb.detectAndCompute(overlay_img, None)
-    
-
-
     matches = bf.match(des1, des2)
     matches = sorted(matches, key=lambda x: x.distance)
     iter = 0
@@ -76,19 +87,19 @@ while True:
         iter += 1
         if iter > 10:
             break
-    
         
-    
     # Take out image part and blend with image
     smallerFrame = overlay[pos_w_0:pos_w_1, pos_h_0:pos_h_1]
-
-
     blendedFrame = cv2.addWeighted(smallerFrame, 1 - OPACITY, overlay_img, OPACITY, 0)
-
     frame[pos_w_0:pos_w_1, pos_h_0:pos_h_1] = blendedFrame
 
     
     cv2.imshow("test", frame)
+    
+    # Take a photo if the picture is in a hotspot
+    
+    if isHotSpot(matches, (H, W), ((pos_w_0, pos_w_1),(pos_h_0, pos_h_1))):
+        img_name = "detected_match_{}.png".format(img_counter)
 
     k = cv2.waitKey(1)
     if k%256 == 27:

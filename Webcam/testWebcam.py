@@ -11,7 +11,7 @@ BORDER_SIZE = 10
 OFF_WHITE = (227, 238, 246)
 OPACITY = 0.8
 
-overlay_img = cv2.resize(cv2.imread("Pen.png"), (315, 89))
+overlay_img = cv2.resize(cv2.imread("pentest.png"), (315, 89))
 
 overlay_w, overlay_h, colour = overlay_img.shape
 
