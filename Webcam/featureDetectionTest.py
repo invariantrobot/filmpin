@@ -17,15 +17,16 @@ OPACITY = 0.7
 RELATIVE_SIZE = 0.3
 # Variables for detecting features
 HOTSPOT_THRESHOLD = 4
-BEST_AMOUNT = 10
+BEST_AMOUNT = 5
 PICTURE_RATIO = 0.5
 THRESHHOLD_PICTURE = 5
 # 
 TRACKING_RATIO_THRESHOLD = 0.1
 GRANULARITY_TRACKING = 0.05
-METHOD_LIST = [cv2.TM_CCOEFF, cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR, cv2.TM_CCORR_NORMED, cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]
-METHOD_LIST_STR = ["TM_CCOEFF", "TM_CCOEFF_NORMED", "TM_CCORR", "TM_CCORR_NORMED", "TM_SQDIFF", "TM_SQDIFF_NORMED"]
+METHOD_LIST = [cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR_NORMED, cv2.TM_SQDIFF_NORMED]
+METHOD_LIST_STR = ["TM_CCOEFF_NORMED", "TM_CCORR_NORMED", "TM_SQDIFF_NORMED"]
 CURRENT_METHOD = 0
+SPOTS_THRESHOLD = 4
 
 
 img_counter = 0
@@ -73,7 +74,7 @@ def isHotSpot(matches, frame, photoPlace):
 
 cam = cv2.VideoCapture(0)
 cv2.namedWindow("test")
-orgPic = cv2.imread("pentest.png") # Read in picture
+orgPic = cv2.imread("booktest.png") # Read in picture
 
 orb = cv2.ORB_create()
 
@@ -132,11 +133,9 @@ while True:
     frame[pos_w_0:pos_w_1, pos_h_0:pos_h_1] = blendedFrame
     picture_frame = frame.copy()
     
-    
-    
-    # Take a photo if the picture is in a hotspot
-    if image_detection:
-        #Draw 10 most matching features
+    spots = []
+
+    if image_detection or tracking_object:
         iter = 0
         for match in matches:
             p1 = kp1[match.queryIdx].pt
@@ -146,8 +145,13 @@ while True:
             cv2.circle(frame, center = point1, radius = 10, color =(0,255,0), thickness=2)
             cv2.circle(frame, center = point2, radius = 5, color= (255,255,0), thickness=2)
             iter += 1
+            spots.append(point1)
             if iter > BEST_AMOUNT:
                 break
+    
+    # Take a photo if the picture is in a hotspot
+    if image_detection:
+        #Draw 10 most matching features
         if isHotSpot(matches, (kp1, kp2), ((pos_w_0, pos_w_1),(pos_h_0, pos_h_1))):
             img_name = f"detected_match_{img_counter}.png".format(img_counter)
             if pictureTime or SAVE_ONCE:
@@ -167,27 +171,48 @@ while True:
 
         factor = 1
         
-        end_width = H*0.2
-        current_width = start_width
-        highest = 0
+        end_width = H*0.1
+        current_width = start_width*0.7
+        highest = -1
         besty, bestx = None, None
         bestw, besth = None, None
+        foundGood = False
+        
 
-        while current_width > end_width:
+        while current_width > end_width: #Reduce frame until small enough
             
             current_h = current_width/w_template*h_template
             grayObject = cv2.resize(grayObject, (int(current_width), int(current_h)))
-
             res = cv2.matchTemplate(frameGray, grayObject, METHOD_LIST[CURRENT_METHOD])
-            loc = np.argmax(res)
-            y, x = np.unravel_index(loc, res.shape)
-            if res[y][x] > highest:
-                highest = res[y][x]
-                besty, bestx = y, x
-                bestw, besth = current_width, current_h
+            k = 30
+            flat = res.ravel()
+            idx = np.argpartition(flat, -k)[-k:]
+            ys, xs = np.unravel_index(idx, res.shape)
+            
+            for y, x in zip(ys, xs):
+                # Logic to check if spots are in the area
+                w_0 = y
+                w_1 = y + round(current_h)
+                h_0 = x
+                h_1 = x + round(current_width)
+
+                spotsInArea = 0
+
+                for spot in spots:
+                    if w_1 > spot[1] > w_0 and h_1 > spot[0] > h_0:
+                        spotsInArea += 1
+
+                if res[y][x] > highest and spotsInArea > SPOTS_THRESHOLD:
+                    highest = res[y][x]
+                    besty, bestx = y, x
+                    bestw, besth = current_width, current_h
+                    foundGood = True
+
+
             factor -= GRANULARITY_TRACKING
             current_width = factor*start_width
-        cv2.rectangle(frame, (bestx,besty), (bestx+int(bestw),besty+int(besth)), color =(0,255,0), thickness=2)
+        if not highest == -1:
+            cv2.rectangle(frame, (bestx,besty), (bestx+int(bestw),besty+int(besth)), color =(0,255,0), thickness=2)
         #for pt in zip(*loc[::-1]):
         #    cv2.rectangle(frame, pt, (pt[0] + w, pt[1] + h), (0, 255, 255), 2)
 
