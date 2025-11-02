@@ -18,8 +18,18 @@ mapRouter.get("/getAllTitles", (req, res) => {
 });
 
 mapRouter.get("/getAllLocations", (req, res) => {
-  const allMovies = db.prepare("SELECT * FROM locations").all();
-  return res.json({ success: true, allMovies });
+  const rows = db.prepare(`
+    SELECT
+      l.*,
+      m.title AS movieTitle
+    FROM locations l
+    LEFT JOIN movies m ON m.id = l.movie_id
+  `).all();
+
+  console.log(rows);
+
+
+  return res.json({ success: true, allLocations: rows });
 });
 
 mapRouter.get("/getLocationsByID", (req, res) => {
@@ -78,7 +88,7 @@ mapRouter.get("/getByTitle", (req, res) => {
     )
     .all(title);
   if (allTitles) {
-    return res.json({ success: true, allTitles });
+    return res.json({ success: true, allTitl4es });
   } else {
     return res.json({ success: false });
   }
@@ -167,17 +177,21 @@ mapRouter.get("/getByLocation", (req, res) => {
   if (!location) {
     return res.json({ success: false });
   }
-  const allLocations = db
-    .prepare(
-      "SELECT * FROM locations WHERE place LIKE '%' || ? || '%' COLLATE NOCASE",
-    )
+  const allLocations = db.prepare(`
+      SELECT l.*, m.title AS movieTitle
+      FROM locations l
+      LEFT JOIN movies m ON m.id = l.movie_id
+      WHERE l.place LIKE '%' || ? || '%' COLLATE NOCASE
+    `)
     .all(location);
   if (allLocations) {
-    return res.json({ success: true, allLocations });
+    return res.json({ success: true, allLocations: allLocations });
   } else {
     return res.json({ success: false });
   }
 });
+
+
 
 mapRouter.get("/getPosterById", async (req, res) => {
   const id = req.query.id;
