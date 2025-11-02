@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SearchView } from './views/searchView';
 import type { SearchTab } from './views/searchView';
-import { getByTitle, type Movie } from './services/api';
+import { getByTitle, type Movie, type Location, getByLocation } from './services/api';
 
 // Type for geocoding results from Nominatim API
 export interface GeocodedLocation {
@@ -38,7 +38,7 @@ export function SearchPresenter() {
     const saved = sessionStorage.getItem('searchFilmResults');
     return saved ? JSON.parse(saved) : [];
   });
-  const [locationResults, setLocationResults] = useState<GeocodedLocation[]>(
+  const [locationResults, setLocationResults] = useState<Location[]>(
     () => {
       const saved = sessionStorage.getItem('searchLocationResults');
       return saved ? JSON.parse(saved) : [];
@@ -93,30 +93,10 @@ export function SearchPresenter() {
   const searchLocations = useCallback(async (query: string) => {
     setIsSearching(true);
     try {
-      const response = await fetch(
-        `/api/nominatim/search?` +
-          new URLSearchParams({
-            q: query,
-            format: 'json',
-            addressdetails: '1',
-            limit: '10',
-          }),
-        {
-          headers: {
-            'Accept-Language': 'en',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to search locations: ${response.status}`);
-      }
-
-      const data: GeocodedLocation[] = await response.json();
-      setLocationResults(data);
+      const locations = await getByLocation(query);
+      setLocationResults(locations);
     } catch (error) {
       console.error('Error searching locations:', error);
-      // Show user-friendly error message
       setLocationResults([]);
     } finally {
       setIsSearching(false);
@@ -199,7 +179,7 @@ export function SearchPresenter() {
     navigate('/');
   }
 
-  function handleLocationClick(location: GeocodedLocation) {
+  function handleLocationClick(location: Location) {
     console.log('SearchPresenter: Location clicked:', location);
     const mapCenter = {
       latitude: parseFloat(location.lat),
@@ -211,7 +191,7 @@ export function SearchPresenter() {
     navigate('/', {
       state: {
         mapCenter,
-        selectedLocationName: location.display_name,
+        selectedLocationName: location.place,
       },
     });
   }

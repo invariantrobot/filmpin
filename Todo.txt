@@ -1,11 +1,7 @@
-Backend
-# Implement search for places
-# Implement weather api?
-
 
 
 Frontend
-# Submit your own photo
+# Ask for location
 # 
 
 

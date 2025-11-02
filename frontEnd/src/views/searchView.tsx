@@ -1,6 +1,6 @@
 import { Search, X, MapPin, Loader2, Film } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import type { Movie } from '../services/api';
+import type { Movie, Location } from '../services/api';
 
 export type SearchTab = 'films' | 'locations';
 
@@ -29,8 +29,8 @@ interface SearchViewProps {
   onTabChange: (tab: SearchTab) => void;
   onBackClick: () => void;
   filmResults?: Movie[];
-  locationResults?: GeocodedLocation[];
-  onLocationClick?: (location: GeocodedLocation) => void;
+  locationResults?: Location[];
+  onLocationClick?: (location: Location) => void;
   onFilmClick?: (film: Movie) => void;
   isSearching?: boolean;
 }
@@ -101,7 +101,7 @@ export function SearchView({
   }
 
   // Handle location click
-  function handleLocationClickACB(location: GeocodedLocation) {
+  function handleLocationClickACB(location: Location) {
     return () => {
       if (onLocationClick) {
         onLocationClick(location);
@@ -118,20 +118,6 @@ export function SearchView({
     };
   }
 
-  // Format address from geocoded location
-  function formatAddress(location: GeocodedLocation): string {
-    const addr = location.address;
-    if (!addr) return location.display_name;
-
-    const parts = [
-      addr.road,
-      addr.suburb || addr.city,
-      addr.state,
-      addr.country,
-    ].filter(Boolean);
-
-    return parts.length > 0 ? parts.join(', ') : location.display_name;
-  }
 
   // Generate placeholder poster URL
   function getPlaceholderPoster(title: string): string {
@@ -305,7 +291,7 @@ export function SearchView({
                 <div className="space-y-2">
                   {locationResults.map((location) => (
                     <button
-                      key={location.place_id}
+                      key={location.id}
                       onClick={handleLocationClickACB(location)}
                       className="w-full bg-white rounded-lg shadow hover:shadow-md transition-shadow p-4 text-left border border-gray-200 hover:border-blue-400"
                     >
@@ -315,18 +301,15 @@ export function SearchView({
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-gray-900 mb-1">
-                            {location.address?.road ||
-                              location.address?.suburb ||
-                              location.address?.city ||
-                              location.type ||
+                            {location.place ||
                               'Location'}
                           </h3>
                           <p className="text-sm text-gray-600 line-clamp-2">
-                            {formatAddress(location)}
+                            {location.movieTitle}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
-                            {parseFloat(location.lat).toFixed(4)},{' '}
-                            {parseFloat(location.lon).toFixed(4)}
+                            {(location.lat).toFixed(4)},{' '}
+                            {(location.lon).toFixed(4)}
                           </p>
                         </div>
                       </div>

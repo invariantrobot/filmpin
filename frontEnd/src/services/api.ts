@@ -9,6 +9,7 @@ export interface Location {
   lat: number;
   lon: number;
   info?: string;
+  movieTitle: string;
 }
 
 export interface Movie {
@@ -31,8 +32,8 @@ export async function getAllLocations(): Promise<Location[]> {
     const response = await fetch(`${API_BASE_URL}/getAllLocations`);
     const data = await response.json();
 
-    if (data.success && data.allMovies) {
-      return data.allMovies as Location[];
+    if (data.success && data.allLocations) {
+      return data.allLocations as Location[];
     }
 
     throw new Error('Failed to fetch locations');
