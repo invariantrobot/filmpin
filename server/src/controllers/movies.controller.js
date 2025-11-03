@@ -3,7 +3,7 @@ import values from "../../db.js";
 import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
-import { fail } from "assert";
+
 const {db, OMDB_KEY, MAPILLARY_KEY, posterCache, plotCache} = values;
 
 const mapRouter = Router();
