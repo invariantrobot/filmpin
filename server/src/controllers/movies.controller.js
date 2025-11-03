@@ -88,7 +88,7 @@ mapRouter.get("/getByTitle", (req, res) => {
     )
     .all(title);
   if (allTitles) {
-    return res.json({ success: true, allTitl4es });
+    return res.json({ success: true, allTitles });
   } else {
     return res.json({ success: false });
   }
