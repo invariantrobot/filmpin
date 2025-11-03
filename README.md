@@ -6,6 +6,7 @@ The project provides the following:
 
 1. A website for showing a demo of the product
 2. An AR prototype in Python which implements object tracking and feature matching
+3. A small webscraper for gathering data for the backend of the product
 
 
 # To run the project:
