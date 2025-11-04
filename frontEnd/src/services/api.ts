@@ -108,8 +108,8 @@ export async function getByTitle(title: string): Promise<Movie[]> {
 }
 
 function toLocations(nominatimArray, { movie_id, movieTitle }, startId = 1) {
-  return nominatimArray.map((g) => ({
-    id: 13371337,                                      
+  return nominatimArray.map((g, i) => ({
+    id: 13371337 + i,                                      
     movie_id,
     movieTitle,
     place:
@@ -151,12 +151,12 @@ export async function getByLocation(place: string): Promise<Location[]> {
     const dataServer = await responseServer.json();
     const dataNoma = await responseNoma.json()
 
-    const locationNoma = toLocations(dataNoma, {movie_id: null, movieTitle: "place"});
+    const locationNoma = toLocations(dataNoma, {movie_id: "tt133713378", movieTitle: "place"});
 
-    const allData = dataServer + locationNoma;
+    const allData: Location[] = [...dataServer.allLocations, ...locationNoma];
 
     if (allData) {
-      return allData as Location[];
+      return allData;
     }
 
     return [];
