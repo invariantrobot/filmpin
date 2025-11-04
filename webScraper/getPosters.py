@@ -24,7 +24,6 @@ for id in ids:
 
     path = out / f"{id}.jpg"
     if path.exists():
-        print("skipping")
         continue
     url = "http://img.omdbapi.com/"
     params = {"apikey": omdb_key, "i": id} 
@@ -32,8 +31,9 @@ for id in ids:
     try:
         r.raise_for_status()
         
-    except:
-        print("error")
+    except Exception as e:
+        print(id)
+        print(e)
 
     ctype = (r.headers.get("content-type") or "").lower()
     if "png" in ctype:
