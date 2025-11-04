@@ -2,6 +2,7 @@ import '../index.css';
 import {
   MapPin,
   ArrowLeft,
+  ArrowRight,
   Plus,
   Users,
   Clock,
@@ -9,6 +10,7 @@ import {
   Cloud,
   ChevronDown,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { MapView } from './mapView';
 import type { FilmLocation } from './mapView';
@@ -174,18 +176,41 @@ export function FilmLocationView({
         <h2 className="text-3xl font-bold text-black text-left pt-8 pb-2 ml-4">
           {filmLocation.title}
         </h2>
+        <div className="flex items-center justify-between mx-4 mb-4 pt-2 pb-0">
+          <h3 className="text-2xl font-regular text-gray-800">
+            {filmLocation.movieTitle}
+          </h3>
+          <button
+            onClick={() => navigate(`/film/${filmLocation.movieId}`)}
+            className="border-2 border-green-600 text-green-600 px-6 py-2 rounded-full hover:bg-green-600 hover:text-white transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            About Movie <ArrowRight size={18} />
+          </button>
+        </div>
         <p className="px-4 py-2 text-gray-700 text-left">
           {location?.info ||
             'No additional information available for this location.'}
         </p>
       </div>
       <div>
+        <button className="text-gray-400 px-6 pb-0 pt-4 rounded-full flex items-center gap-2">
+          <Users size={20} />
+          24 people visited
+        </button>
+      </div>
+      <div className="flex gap-4 mx-4 mb-6 mt-3">
+        <button className="flex-1 flex items-center justify-center gap-2 bg-green-200 text-green-800 px-6 py-3 rounded-full hover:bg-green-500 transition-all font-medium">
+          <MapPin size={20} />
+          Been There
+        </button>
+        <button className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-full hover:bg-green-700 transition-all font-medium">
+          <Sparkles size={20} />
+          AR Camera
+        </button>
+      </div>
+      <div>
         <div className="mt-4 flex justify-between items-center mx-4">
           <h3 className="text-2xl font-semibold text-gray-800">Pin Location</h3>
-          <button className="bg-gray-200 text-gray-700 px-6 py-2 rounded-full flex items-center gap-2">
-            <Users size={20} />
-            24 people visited
-          </button>
         </div>
         <div className="px-0 py-0 mx-4 rounded mt-6 h-60 overflow-hidden">
           <MapView
