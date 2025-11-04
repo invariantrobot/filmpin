@@ -1,6 +1,7 @@
 import cv2
 import math
 import numpy as np
+import time
 
 #initialize variables 
 
@@ -157,9 +158,18 @@ while True:
             img_name = f"detected_match_{img_counter}.png".format(img_counter)
             if pictureTime or SAVE_ONCE:
                 print("Taking picture")
-                cv2.imwrite(img_name, picture_frame)
+                
+                for i in range(1,256):
+                    overlay = cv2.add(overlay, 1)
+                    cv2.imshow("test", overlay)
+                    cv2.waitKey(5)
+                
+                cv2.imshow("test", picture_frame)
+                cv2.waitKey(10000)
                 SAVE_ONCE = False
                 img_counter += 1
+
+
     
     if tracking_object:
         frameGray = cv2.cvtColor(overlay, cv2.COLOR_BGR2GRAY)

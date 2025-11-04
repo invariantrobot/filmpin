@@ -7,9 +7,13 @@ cv2.namedWindow("test")
 
 orb = cv2.ORB_create()
 
+plus = 0
+
 
 while True:
     ret, frame = cam.read()
+    frame = cv2.add(frame, plus)
+ 
 
     
     H, W = frame.shape[:2]
@@ -31,6 +35,9 @@ while True:
         cv2.imwrite(img_name, frame)
         print("{} written!".format(img_name))
         img_counter += 1
+    elif k%256 == ord('p'):
+        plus += 1
+
 
 cam.release()
 

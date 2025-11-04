@@ -1,7 +1,5 @@
-
-
-Frontend
-# Ask for location
-# 
+# Add victorius poster
+# Run add victorius
+# Calibrate sensitivity
 
 
