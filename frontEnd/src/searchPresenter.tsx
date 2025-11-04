@@ -103,6 +103,8 @@ export function SearchPresenter() {
     }
   }, []);
 
+
+
   // Debounced search for films tab
   useEffect(() => {
     if (activeTab !== 'films' || !searchQuery.trim()) {

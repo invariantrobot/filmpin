@@ -107,25 +107,64 @@ export async function getByTitle(title: string): Promise<Movie[]> {
   }
 }
 
+function toLocations(nominatimArray, { movie_id, movieTitle }, startId = 1) {
+  return nominatimArray.map((g) => ({
+    id: 13371337,                                      
+    movie_id,
+    movieTitle,
+    place:
+      g.display_name ??
+      [g.address?.road, g.address?.city, g.address?.country]
+        .filter(Boolean)
+        .join(", "),
+    lat: Number(g.lat),                                   // strings -> numbers
+    lon: Number(g.lon),
+    info: g.type || undefined,
+  }));
+}
+
 /**
  * Search locations by place name
  */
 export async function getByLocation(place: string): Promise<Location[]> {
   try {
-    const response = await fetch(
+    const responseServer = await fetch(
       `${API_BASE_URL}/getByLocation?place=${encodeURIComponent(place)}`
     );
-    const data = await response.json();
+    
 
-    if (data.success && data.allLocations) {
-      return data.allLocations as Location[];
+    const responseNoma = await fetch(
+      `/api/nominatim/search?` +
+        new URLSearchParams({
+          q: place,
+          format: 'json',
+          addressdetails: '1',
+          limit: '10',
+        }),
+      {
+        headers: {
+          'Accept-Language': 'en',
+        },
+      }
+    );
+
+    const dataServer = await responseServer.json();
+    const dataNoma = await responseNoma.json()
+
+    const locationNoma = toLocations(dataNoma, {movie_id: null, movieTitle: "place"});
+
+    const allData = dataServer + locationNoma;
+
+    if (allData) {
+      return allData as Location[];
     }
 
     return [];
-  } catch (error) {
-    console.error('Error searching by location:', error);
-    throw error;
-  }
+
+    } catch (error) {
+      console.error('Error searching by location:', error);
+      throw error;
+    }
 }
 
 /**
